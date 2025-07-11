@@ -36,4 +36,21 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# VSCode settings (optional if you don't want workspace settings in git)
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Coverage reports (if you add testing later)
+coverage/
+
+# Expo generated files (extra cautious)
+*.expo-shared/
+
+# iOS/Android folders if you ever eject
+ios/
+android/
+
 app-example
