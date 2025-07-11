@@ -1,5 +1,3 @@
-// 📄 utils/firebaseConfig.ts
-
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getReactNativePersistence, initializeAuth } from "firebase/auth";
@@ -15,11 +13,13 @@ const firebaseConfig = {
   measurementId: "G-8Y2941KZGW",
 };
 
-// ✅ Only initialize Firebase once
+// Only initialize Firebase once to prevent errors during hot-reloading
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
+// Initialize auth with AsyncStorage for persistence
 export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage),
 });
 
+// Initialize Firestore
 export const db = getFirestore(app);

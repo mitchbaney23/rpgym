@@ -1,75 +1,45 @@
-import { doc, getDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { auth, db } from '../../utils/firebaseConfig';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { Tabs } from 'expo-router';
+import React from 'react';
+import { TabBarIcon } from '../../components/TabBarIcon'; // Corrected import path
 
-const HomeScreen = () => {
-  const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(true);
-  const user = auth.currentUser;
-
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchUserData = async () => {
-      try {
-        // Create a reference to the user's document in Firestore
-        const userDocRef = doc(db, 'users', user.uid);
-        
-        // Fetch the document
-        const docSnap = await getDoc(userDocRef);
-
-        if (docSnap.exists()) {
-          // Set the username from the document data
-          setUsername(docSnap.data().username);
-        } else {
-          console.log("No such user document!");
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserData();
-  }, [user]);
-
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#ffffff" />
-      </View>
-    );
-  }
+export default function TabLayout() {
+  const colorScheme = useColorScheme();
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.welcomeText}>
-        Welcome to RPGym, {username}
-      </Text>
-    </View>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        headerShown: false,
+      }}>
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="log-workout"
+        options={{
+          title: 'Log Workout',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'add-circle' : 'add-circle-outline'} color={color} />
+          ),
+        }}
+      />
+       <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'person' : 'person-outline'} color={color} />
+          ),
+        }}
+      />
+    </Tabs>
   );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    // A dark brown background color
-    backgroundColor: '#3d2f2f',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  welcomeText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    textAlign: 'center',
-  },
-});
-
-export default HomeScreen;
+}
