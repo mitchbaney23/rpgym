@@ -1,5 +1,7 @@
+// 📄 utils/firebaseConfig.ts
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { initializeApp } from "firebase/app";
+import { getApp, getApps, initializeApp } from "firebase/app";
 import { getReactNativePersistence, initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -10,10 +12,11 @@ const firebaseConfig = {
   storageBucket: "rpgym-436e1.appspot.com",
   messagingSenderId: "142629336797",
   appId: "1:142629336797:web:852051fe0cc4ab111d8d34",
-  measurementId: "G-8Y2941KZGW"
+  measurementId: "G-8Y2941KZGW",
 };
 
-const app = initializeApp(firebaseConfig);
+// ✅ Only initialize Firebase once
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage),
