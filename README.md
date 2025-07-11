@@ -1,50 +1,131 @@
-# Welcome to your Expo app 👋
+🔥 Excellent call — a solid `README.md` not only helps you stay organized but also makes the project look professional & ready to share or collaborate on 🚀
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Below is a **starter README.md** tailored for your **rpgym** project and our vision:
 
-## Get started
+---
 
-1. Install dependencies
+# 🏋️ rpgym
 
-   ```bash
-   npm install
-   ```
+> *Level up your fitness — one skill at a time.*
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## 📖 Overview
 
-In the output, you'll find options to open the app in a
+**rpgym** is a gamified fitness app where users train to reach their goals by leveling up 5 core skills:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+* Push-ups
+* Sit-ups
+* Squats
+* 5K Run
+* Pull-ups
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+You gain XP & level simply by improving — the more you can do, the higher your level.
+Icons upgrade every 11 levels, and each skill has a golden badge at level 99.
 
-## Get a fresh project
+Built with ❤️ using React Native + Expo for iOS & Android.
 
-When you're ready, run:
+---
 
-```bash
-npm run reset-project
+## 📸 Screenshots
+
+*(Coming soon — add screenshots/gifs of your app here)*
+
+---
+
+## 🧰 Tech Stack
+
+* **Frontend:** React Native with Expo (TypeScript)
+* **State Management:** TBD (context or redux)
+* **Backend / Data:** Firebase & Firestore
+* **Styling:** TailwindCSS (or CSS modules / inline RN styles)
+* **Navigation:** React Navigation
+
+---
+
+## 🗂️ Directory Structure
+
+```
+src/
+├── App.tsx
+├── components/      # Reusable UI components
+├── screens/         # Home, Log Workout, Skill Tree, Profile
+├── navigation/      # AppNavigator
+├── utils/           # Utility functions (e.g., level calculations)
+├── types/           # TypeScript types
+assets/
+├── icons/           # Skill icons
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## 🚀 Getting Started
 
-To learn more about developing your project with Expo, look at the following resources:
+### 📦 Prerequisites
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+* Node.js & npm
+* Expo CLI (`npm install -g expo-cli`)
+* Git
+* (Optional) VSCode
 
-## Join the community
+### 🛠️ Installation
 
-Join our community of developers creating universal apps.
+```bash
+# Clone the repository
+git clone https://github.com/YOUR-USERNAME/rpgym.git
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+# Navigate into the project
+cd rpgym
+
+# Install dependencies
+npm install
+
+# Start Expo
+npx expo start
+```
+
+Then scan the QR code with the **Expo Go app** on your phone.
+
+---
+
+## 🎮 Features (MVP)
+
+✅ Level up 5 fitness skills
+✅ Skill levels displayed with icons that upgrade every 11 levels
+✅ Golden badge at level 99
+✅ Log workouts and track progress
+✅ Profile screen to view totals and stats
+
+---
+
+## 🚧 Roadmap
+
+* [ ] Authentication (Firebase)
+* [ ] Persistent progress storage
+* [ ] Social leaderboard
+* [ ] Daily quests & streaks
+* [ ] Dark mode
+
+---
+
+## 👥 Contributing
+
+Pull requests are welcome!
+For major changes, please open an issue first to discuss what you would like to change.
+
+---
+
+## 📄 License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments
+
+* React Native / Expo team
+* TailwindCSS
+* Firebase
+* Everyone working to make fitness more fun ❤️
+
+
