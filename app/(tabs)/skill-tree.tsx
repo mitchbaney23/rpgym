@@ -1,10 +1,9 @@
-import { Link } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router'; // Import useFocusEffect
 import { collection, getDocs, query } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react'; // Import useCallback
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { auth, db } from '../../utils/firebaseConfig';
 
-// We can reuse the Skill interface
 export interface Skill {
   id: string; 
   name: string;
@@ -17,37 +16,39 @@ const SkillTreeScreen = () => {
   const [loading, setLoading] = useState(true);
   const user = auth.currentUser;
 
-  useEffect(() => {
-    // This function fetches the skills from Firestore.
-    // We can reuse the logic from our previous home screen.
-    const fetchSkills = async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const skillsCollectionRef = collection(db, 'users', user.uid, 'skills');
-        const q = query(skillsCollectionRef);
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          const userSkills = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Skill[];
-          setSkills(userSkills);
+  // This function will now be called every time the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const fetchSkills = async () => {
+        if (!user) {
+          setLoading(false);
+          return;
         }
-      } catch (error) {
-        console.error("Error fetching skills:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+        try {
+          console.log("Fetching skills..."); // For debugging
+          const skillsCollectionRef = collection(db, 'users', user.uid, 'skills');
+          const q = query(skillsCollectionRef);
+          const querySnapshot = await getDocs(q);
 
-    fetchSkills();
-  }, [user]);
+          if (!querySnapshot.empty) {
+            const userSkills = querySnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            })) as Skill[];
+            setSkills(userSkills);
+          }
+        } catch (error) {
+          console.error("Error fetching skills:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
 
-  if (loading) {
+      fetchSkills();
+    }, [user]) // Re-run if the user object changes
+  );
+
+  if (loading && skills.length === 0) { // Only show loading on initial load
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#ffffff" />
@@ -74,7 +75,6 @@ const SkillTreeScreen = () => {
   );
 };
 
-// We'll use a similar style to our old home screen, but you can customize it.
 const styles = StyleSheet.create({
   container: {
     flex: 1,
