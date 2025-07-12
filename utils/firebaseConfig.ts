@@ -13,13 +13,20 @@ const firebaseConfig = {
   measurementId: "G-8Y2941KZGW",
 };
 
-// Only initialize Firebase once to prevent errors during hot-reloading
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+let app;
 
-// Initialize auth with AsyncStorage for persistence
+// Check if any apps are already initialized
+if (getApps().length === 0) {
+  // If no apps are initialized, create a new one
+  app = initializeApp(firebaseConfig);
+} else {
+  // If an app is already initialized, use the existing one
+  app = getApp();
+}
+
+// Initialize Auth and Firestore with the correct app instance
 export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage),
 });
 
-// Initialize Firestore
 export const db = getFirestore(app);

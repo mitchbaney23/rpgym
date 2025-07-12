@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { TabBarIcon } from '../../components/TabBarIcon'; // Corrected import path
+import { TabBarIcon } from '../../components/TabBarIcon';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -23,11 +23,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="log-workout"
+        name="skill-tree"
         options={{
-          title: 'Log Workout',
+          title: 'Skill Tree',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'add-circle' : 'add-circle-outline'} color={color} />
+            <TabBarIcon name={focused ? 'git-network' : 'git-network-outline'} color={color} />
           ),
         }}
       />
