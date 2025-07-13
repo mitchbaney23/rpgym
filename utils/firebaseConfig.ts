@@ -1,7 +1,12 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getReactNativePersistence, initializeAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApp, getApps, initializeApp } from 'firebase/app';
+import {
+    browserLocalPersistence,
+    getReactNativePersistence,
+    initializeAuth
+} from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { Platform } from 'react-native';
 
 const firebaseConfig = {
   apiKey: "AIzaSyC_GepIJHlVuPM_S90ye9lkHop-50Jgv8A",
@@ -13,20 +18,19 @@ const firebaseConfig = {
   measurementId: "G-8Y2941KZGW",
 };
 
+// Initialize Firebase App
 let app;
-
-// Check if any apps are already initialized
 if (getApps().length === 0) {
-  // If no apps are initialized, create a new one
   app = initializeApp(firebaseConfig);
 } else {
-  // If an app is already initialized, use the existing one
   app = getApp();
 }
 
-// Initialize Auth and Firestore with the correct app instance
+// Conditionally initialize Auth based on the platform
 export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
+  persistence: Platform.OS === 'web' 
+    ? browserLocalPersistence // Use browser persistence on web
+    : getReactNativePersistence(AsyncStorage) // Use React Native persistence on mobile
 });
 
 export const db = getFirestore(app);
