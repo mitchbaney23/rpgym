@@ -52,7 +52,8 @@ const LeaderboardScreen = () => {
           <View style={styles.entryItem}>
             <Text style={styles.rank}>{index + 1}</Text>
             <Text style={styles.username}>{item.username}</Text>
-            <Text style={styles.level}>Lv. {item.overallLevel.toFixed(2)}</Text>
+            {/* Removed .toFixed(2) */}
+            <Text style={styles.level}>Lv. {item.overallLevel}</Text>
           </View>
         )}
       />

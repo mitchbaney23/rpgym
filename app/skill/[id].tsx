@@ -87,7 +87,9 @@ const SkillDetailPage = () => {
             totalLevel += doc.data().level;
             skillCount++;
         });
-        const overallLevel = skillCount > 0 ? totalLevel / skillCount : 0;
+        
+        // This is the updated line with Math.round()
+        const overallLevel = skillCount > 0 ? Math.round(totalLevel / skillCount) : 0;
         
         const userDocRef = doc(db, 'users', user.uid);
         await updateDoc(userDocRef, { overallLevel: overallLevel });

@@ -1,6 +1,6 @@
-import { Link, useFocusEffect } from 'expo-router'; // Import useFocusEffect
-import { collection, getDocs, query } from 'firebase/firestore';
-import React, { useCallback, useState } from 'react'; // Import useCallback
+import { Link, useFocusEffect } from 'expo-router';
+import { collection, doc, getDocs, query, setDoc } from 'firebase/firestore';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { auth, db } from '../../utils/firebaseConfig';
 
@@ -11,12 +11,39 @@ export interface Skill {
   progress: number;
 }
 
+// 1. Re-add the default skills array
+const DEFAULT_SKILLS: Skill[] = [
+  { id: 'push-ups', name: 'Push-ups', level: 0, progress: 0 },
+  { id: 'sit-ups', name: 'Sit-ups', level: 0, progress: 0 },
+  { id: 'squats', name: 'Squats', level: 0, progress: 0 },
+  { id: 'pull-ups', name: 'Pull-ups', level: 0, progress: 0 },
+  { id: '5k-run', name: '5K Run', level: 0, progress: 3600 },
+];
+
 const SkillTreeScreen = () => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const user = auth.currentUser;
 
-  // This function will now be called every time the screen is focused
+  // 2. Re-add the function to create skills for a new user
+  const initializeUserSkills = async (userId: string) => {
+    try {
+      const skillsCollectionRef = collection(db, 'users', userId, 'skills');
+      for (const skill of DEFAULT_SKILLS) {
+        const skillDocRef = doc(skillsCollectionRef, skill.id);
+        await setDoc(skillDocRef, {
+          name: skill.name,
+          level: skill.level,
+          progress: skill.progress,
+        });
+      }
+      return DEFAULT_SKILLS;
+    } catch (error) {
+      console.error("Error initializing user skills:", error);
+      return [];
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       const fetchSkills = async () => {
@@ -25,12 +52,16 @@ const SkillTreeScreen = () => {
           return;
         }
         try {
-          console.log("Fetching skills..."); // For debugging
           const skillsCollectionRef = collection(db, 'users', user.uid, 'skills');
           const q = query(skillsCollectionRef);
           const querySnapshot = await getDocs(q);
 
-          if (!querySnapshot.empty) {
+          // 3. Add the logic to handle an empty query (a new user)
+          if (querySnapshot.empty) {
+            console.log("No skills found for user. Initializing defaults.");
+            const initializedSkills = await initializeUserSkills(user.uid);
+            setSkills(initializedSkills);
+          } else {
             const userSkills = querySnapshot.docs.map(doc => ({
               id: doc.id,
               ...doc.data(),
@@ -45,10 +76,10 @@ const SkillTreeScreen = () => {
       };
 
       fetchSkills();
-    }, [user]) // Re-run if the user object changes
+    }, [user])
   );
 
-  if (loading && skills.length === 0) { // Only show loading on initial load
+  if (loading && skills.length === 0) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#ffffff" />
@@ -75,6 +106,7 @@ const SkillTreeScreen = () => {
   );
 };
 
+// --- Styles remain the same ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
