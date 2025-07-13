@@ -1,10 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { auth, db } from '../../utils/firebaseConfig';
 
-// A map to link skill IDs to the image assets
 const skillImageMap = {
   'push-ups': require('../../assets/images/push-ups.png'),
   'sit-ups': require('../../assets/images/sit-ups.png'),
@@ -16,7 +15,7 @@ const skillImageMap = {
 const SkillDetailPage = () => {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-
+  
   const [skillName, setSkillName] = useState('');
   const [initialLevel, setInitialLevel] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -24,7 +23,6 @@ const SkillDetailPage = () => {
   const [minutes, setMinutes] = useState('0');
   const [seconds, setSeconds] = useState('0');
 
-  // This hook remains the same
   useEffect(() => {
     if (!id) return;
     const skillId = Array.isArray(id) ? id[0] : id;
@@ -32,7 +30,6 @@ const SkillDetailPage = () => {
     const fetchSkillData = async () => {
       const user = auth.currentUser;
       if (!user) return;
-
       const skillDocRef = doc(db, 'users', user.uid, 'skills', skillId);
       const docSnap = await getDoc(skillDocRef);
 
@@ -40,7 +37,6 @@ const SkillDetailPage = () => {
         const data = docSnap.data();
         setSkillName(data.name);
         setInitialLevel(data.level);
-        
         if (skillId === '5k-run') {
           setMinutes(String(Math.floor(data.progress / 60)));
           setSeconds(String(data.progress % 60));
@@ -50,11 +46,9 @@ const SkillDetailPage = () => {
       }
       setLoading(false);
     };
-
     fetchSkillData();
   }, [id]);
 
-  // This function remains the same
   const handleUpdate = async () => {
     if (!id) return;
     const skillId = Array.isArray(id) ? id[0] : id;
@@ -65,35 +59,49 @@ const SkillDetailPage = () => {
     let newProgress = 0;
 
     if (skillId === '5k-run') {
-      const totalSeconds = (Number(minutes) * 60) + Number(seconds);
-      if (totalSeconds < 1500 || totalSeconds > 3600) {
-        Alert.alert("Invalid Time", "Please enter a time between 25:00 and 60:00.");
-        return;
-      }
-      newProgress = totalSeconds;
-      newLevel = Math.min(Math.floor((3600 - newProgress) / 21), 99);
+        const totalSeconds = (Number(minutes) * 60) + Number(seconds);
+        if (totalSeconds < 1500 || totalSeconds > 3600) {
+            Alert.alert("Invalid Time", "Please enter a time between 25:00 and 60:00.");
+            return;
+        }
+        newProgress = totalSeconds;
+        newLevel = Math.min(Math.floor((3600 - newProgress) / 21), 99);
     } else if (skillId === 'pull-ups') {
-      newProgress = currentReps;
-      newLevel = Math.min(Math.floor(newProgress * 5), 99);
+        newProgress = currentReps;
+        newLevel = Math.min(Math.floor(newProgress * 5), 99);
     } else {
-      newProgress = currentReps;
-      newLevel = Math.min(newProgress, 99);
+        newProgress = currentReps;
+        newLevel = Math.min(newProgress, 99);
     }
-
+    
     const skillDocRef = doc(db, 'users', user.uid, 'skills', skillId);
+    
     try {
-      await updateDoc(skillDocRef, { progress: newProgress, level: newLevel });
+        await updateDoc(skillDocRef, { progress: newProgress, level: newLevel });
 
-      if (newLevel > initialLevel) {
-        Alert.alert('🎉 Level Up! 🎉', `Congratulations! You're now level ${newLevel}!`);
-      } else {
-        Alert.alert('Progress Saved!', `${skillName} progress has been updated.`);
-      }
+        const skillsQuery = query(collection(db, 'users', user.uid, 'skills'));
+        const querySnapshot = await getDocs(skillsQuery);
+        let totalLevel = 0;
+        let skillCount = 0;
+        querySnapshot.forEach(doc => {
+            totalLevel += doc.data().level;
+            skillCount++;
+        });
+        const overallLevel = skillCount > 0 ? totalLevel / skillCount : 0;
+        
+        const userDocRef = doc(db, 'users', user.uid);
+        await updateDoc(userDocRef, { overallLevel: overallLevel });
 
-      router.back();
+        if (newLevel > initialLevel) {
+            Alert.alert('🎉 Level Up! 🎉', `Congratulations! You're now level ${newLevel}!`);
+        } else {
+            Alert.alert('Progress Saved!', `${skillName} progress has been updated.`);
+        }
+        router.back();
+
     } catch (error) {
-      console.error("Error updating skill:", error);
-      Alert.alert('Error', 'Could not update your skill.');
+        console.error("Error updating skill:", error);
+        Alert.alert('Error', 'Could not update your skill.');
     }
   };
 
@@ -101,32 +109,18 @@ const SkillDetailPage = () => {
     return <ActivityIndicator style={{ flex: 1 }} size="large" />;
   }
 
-  // --- UI Rendering ---
-  const skillId = Array.isArray(id) ? id[0] : id as keyof typeof skillImageMap;
+  const skillId = (Array.isArray(id) ? id[0] : id) as keyof typeof skillImageMap;
   const imageSource = skillImageMap[skillId];
 
   const renderInputUI = () => {
-    // This function remains the same
     if (skillId === '5k-run') {
       return (
         <>
           <Text style={styles.skillName}>{skillName}</Text>
           <View style={styles.timeInputContainer}>
-            <TextInput
-              style={styles.textInput}
-              value={minutes}
-              onChangeText={(text) => setMinutes(text.replace(/[^0-9]/g, ''))}
-              keyboardType="number-pad"
-              maxLength={2}
-            />
+            <TextInput style={styles.textInput} value={minutes} onChangeText={(text) => setMinutes(text.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={2} />
             <Text style={styles.timeSeparator}>:</Text>
-            <TextInput
-              style={styles.textInput}
-              value={seconds}
-              onChangeText={(text) => setSeconds(text.replace(/[^0-9]/g, ''))}
-              keyboardType="number-pad"
-              maxLength={2}
-            />
+            <TextInput style={styles.textInput} value={seconds} onChangeText={(text) => setSeconds(text.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={2} />
           </View>
         </>
       );
@@ -138,12 +132,7 @@ const SkillDetailPage = () => {
           <Pressable style={styles.button} onPress={() => setCurrentReps(Math.max(0, currentReps - 1))}>
             <Text style={styles.buttonText}>-</Text>
           </Pressable>
-          <TextInput
-            style={styles.textInput}
-            value={String(currentReps)}
-            onChangeText={(text) => setCurrentReps(Number(text.replace(/[^0-9]/g, '')) || 0)}
-            keyboardType="number-pad"
-          />
+          <TextInput style={styles.textInput} value={String(currentReps)} onChangeText={(text) => setCurrentReps(Number(text.replace(/[^0-9]/g, '')) || 0)} keyboardType="number-pad" />
           <Pressable style={styles.button} onPress={() => setCurrentReps(currentReps + 1)}>
             <Text style={styles.buttonText}>+</Text>
           </Pressable>
@@ -154,17 +143,10 @@ const SkillDetailPage = () => {
   
   return (
     <View style={styles.container}>
-      {/* Replaced the placeholder View with an Image component */}
       <View style={styles.imageContainer}>
-        <Image 
-          source={imageSource}
-          style={styles.skillImage}
-          resizeMode="contain" // This ensures the whole image fits
-        />
+        <Image source={imageSource} style={styles.skillImage} resizeMode="contain" />
       </View>
-      
       {renderInputUI()}
-
       <Pressable style={styles.saveButton} onPress={handleUpdate}>
         <Text style={styles.saveButtonText}>Update</Text>
       </Pressable>
@@ -180,7 +162,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20,
     },
-    // Updated image styles
     imageContainer: {
         height: '33%',
         width: '100%',
@@ -189,7 +170,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderRadius: 10,
         marginBottom: 30,
-        overflow: 'hidden', // Ensures the image respects the border radius
+        overflow: 'hidden',
     },
     skillImage: {
         width: '80%',

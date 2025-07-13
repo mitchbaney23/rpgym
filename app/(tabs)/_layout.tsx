@@ -31,7 +31,8 @@ export default function TabLayout() {
           ),
         }}
       />
-       <Tabs.Screen
+      {/* The Leaderboard tab that was here has been removed */}
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
