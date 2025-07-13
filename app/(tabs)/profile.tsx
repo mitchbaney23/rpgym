@@ -1,16 +1,16 @@
 import { Link } from 'expo-router';
-import { signOut } from 'firebase/auth';
+import { sendPasswordResetEmail, signOut } from 'firebase/auth'; // Import sendPasswordResetEmail
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native'; // Import Alert
 import { auth, db } from '../../utils/firebaseConfig';
 
+// ... Quest interface and placeholder data remain the same ...
 interface Quest {
   id: string;
   title: string;
   completed: boolean;
 }
-
 const placeholderQuests: Quest[] = [
   { id: '1', title: 'Logged in successfully 3 days in a row', completed: false },
   { id: '2', title: 'Complete your first workout', completed: true },
@@ -24,6 +24,23 @@ const ProfileScreen = () => {
   const [loading, setLoading] = useState(true);
   const user = auth.currentUser;
 
+  // --- NEW FUNCTION ---
+  const handleChangePassword = () => {
+    if (user?.email) {
+      sendPasswordResetEmail(auth, user.email)
+        .then(() => {
+          Alert.alert(
+            "Check Your Email",
+            `A password reset link has been sent to ${user.email}.`
+          );
+        })
+        .catch((error) => {
+          console.error("Error sending password reset email:", error);
+          Alert.alert("Error", "Could not send password reset email. Please try again later.");
+        });
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -32,6 +49,7 @@ const ProfileScreen = () => {
     }
   };
 
+  // ... useEffect hook remains the same ...
   useEffect(() => {
     const fetchUserData = async () => {
       if (user) {
@@ -54,7 +72,6 @@ const ProfileScreen = () => {
     <View style={styles.container}>
       <Text style={styles.username}>{username}</Text>
       
-      {/* This is the button that was missing */}
       <Link href="/leaderboard" asChild>
         <Pressable style={styles.leaderboardButton}>
           <Text style={styles.leaderboardButtonText}>🏆 View Leaderboard</Text>
@@ -79,13 +96,18 @@ const ProfileScreen = () => {
         />
       </View>
 
-      <View style={styles.signOutButtonContainer}>
+      {/* --- NEW BUTTON & UPDATED SIGN OUT --- */}
+      <View style={styles.buttonContainer}>
+        <Button title="Change Password" onPress={handleChangePassword} color="#007BFF" />
+        <View style={{ height: 10 }} />
         <Button title="Sign Out" onPress={handleSignOut} color="#ff4757" />
       </View>
     </View>
   );
 };
 
+
+// Updated styles to handle multiple buttons
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -144,7 +166,7 @@ const styles = StyleSheet.create({
         fontSize: 20,
         marginLeft: 10,
     },
-    signOutButtonContainer: {
+    buttonContainer: {
         paddingTop: 20,
         borderTopColor: '#333',
         borderTopWidth: 1,
