@@ -1,25 +1,30 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { auth, db } from '../../utils/firebaseConfig';
+
+// A map to link skill IDs to the image assets
+const skillImageMap = {
+  'push-ups': require('../../assets/images/push-ups.png'),
+  'sit-ups': require('../../assets/images/sit-ups.png'),
+  'squats': require('../../assets/images/squats.png'),
+  'pull-ups': require('../../assets/images/pull-ups.png'),
+  '5k-run': require('../../assets/images/5k-run.png'),
+};
 
 const SkillDetailPage = () => {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  
-  // Common State
+
   const [skillName, setSkillName] = useState('');
   const [initialLevel, setInitialLevel] = useState(0);
   const [loading, setLoading] = useState(true);
-
-  // Rep-based State
   const [currentReps, setCurrentReps] = useState(0);
-
-  // Time-based State
   const [minutes, setMinutes] = useState('0');
   const [seconds, setSeconds] = useState('0');
 
+  // This hook remains the same
   useEffect(() => {
     if (!id) return;
     const skillId = Array.isArray(id) ? id[0] : id;
@@ -37,7 +42,6 @@ const SkillDetailPage = () => {
         setInitialLevel(data.level);
         
         if (skillId === '5k-run') {
-          // Convert total seconds from DB to minutes and seconds for the UI
           setMinutes(String(Math.floor(data.progress / 60)));
           setSeconds(String(data.progress % 60));
         } else {
@@ -50,6 +54,7 @@ const SkillDetailPage = () => {
     fetchSkillData();
   }, [id]);
 
+  // This function remains the same
   const handleUpdate = async () => {
     if (!id) return;
     const skillId = Array.isArray(id) ? id[0] : id;
@@ -59,10 +64,8 @@ const SkillDetailPage = () => {
     let newLevel = 0;
     let newProgress = 0;
 
-    // --- Leveling Logic ---
     if (skillId === '5k-run') {
       const totalSeconds = (Number(minutes) * 60) + Number(seconds);
-      // Ensure time is within the 25-60 minute range
       if (totalSeconds < 1500 || totalSeconds > 3600) {
         Alert.alert("Invalid Time", "Please enter a time between 25:00 and 60:00.");
         return;
@@ -98,9 +101,13 @@ const SkillDetailPage = () => {
     return <ActivityIndicator style={{ flex: 1 }} size="large" />;
   }
 
-  // --- Conditional UI Rendering ---
+  // --- UI Rendering ---
+  const skillId = Array.isArray(id) ? id[0] : id as keyof typeof skillImageMap;
+  const imageSource = skillImageMap[skillId];
+
   const renderInputUI = () => {
-    if (id === '5k-run') {
+    // This function remains the same
+    if (skillId === '5k-run') {
       return (
         <>
           <Text style={styles.skillName}>{skillName}</Text>
@@ -124,7 +131,6 @@ const SkillDetailPage = () => {
         </>
       );
     }
-    // Rep-based UI
     return (
       <>
         <Text style={styles.skillName}>{skillName}</Text>
@@ -148,8 +154,13 @@ const SkillDetailPage = () => {
   
   return (
     <View style={styles.container}>
-      <View style={styles.imagePlaceholder}>
-        <Text style={styles.placeholderText}>Pixel Art Asset</Text>
+      {/* Replaced the placeholder View with an Image component */}
+      <View style={styles.imageContainer}>
+        <Image 
+          source={imageSource}
+          style={styles.skillImage}
+          resizeMode="contain" // This ensures the whole image fits
+        />
       </View>
       
       {renderInputUI()}
@@ -161,7 +172,7 @@ const SkillDetailPage = () => {
   );
 };
 
-// Add new styles for the time input and adjust existing ones
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -169,7 +180,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20,
     },
-    imagePlaceholder: {
+    // Updated image styles
+    imageContainer: {
         height: '33%',
         width: '100%',
         backgroundColor: '#1e1e1e',
@@ -177,10 +189,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderRadius: 10,
         marginBottom: 30,
+        overflow: 'hidden', // Ensures the image respects the border radius
     },
-    placeholderText: {
-        color: '#888',
-        fontSize: 18,
+    skillImage: {
+        width: '80%',
+        height: '80%',
     },
     skillName: {
         fontSize: 32,
@@ -188,13 +201,13 @@ const styles = StyleSheet.create({
         color: '#fff',
         marginBottom: 30,
     },
-    inputContainer: {
+    timeInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 40,
     },
-    timeInputContainer: {
+    inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -218,7 +231,7 @@ const styles = StyleSheet.create({
         fontSize: 30,
     },
     textInput: {
-        width: 80, // Adjusted width
+        width: 80,
         height: 60,
         borderColor: '#555',
         borderWidth: 2,
@@ -226,7 +239,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: '#fff',
         fontSize: 24,
-        marginHorizontal: 10, // Adjusted margin
+        marginHorizontal: 10,
     },
     saveButton: {
         backgroundColor: '#4CAF50',
