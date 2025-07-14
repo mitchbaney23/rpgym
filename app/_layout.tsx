@@ -5,52 +5,58 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { onAuthStateChanged } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import LoginScreen from '../components/LoginScreen';
-import SignupScreen from '../components/SignupScreen'; // Import SignupScreen
+import SignupScreen from '../components/SignupScreen';
 import { auth } from '../utils/firebaseConfig';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [fontsLoaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
   const [user, setUser] = useState<null | object>(null);
-  const [loading, setLoading] = useState(true);
-  const [showSignup, setShowSignup] = useState(false); // State to manage which screen to show
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showSignup, setShowSignup] = useState(false);
+
+  // Load the fonts
+  const [fontsLoaded, fontError] = useFonts({
+    'PressStart2P': require('../assets/fonts/PressStart2P-Regular.ttf'),
+    'Roboto': require('../assets/fonts/Roboto-Regular.ttf'),
+  });
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
-      setLoading(false);
+      setAuthLoading(false);
     });
     return () => unsub();
   }, []);
 
-  if (!fontsLoaded || loading) {
+  // Show a loading screen while fonts or auth state are loading
+  if (!fontsLoaded || authLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Loading…</Text>
+        <ActivityIndicator size="large" />
       </View>
     );
   }
+  
+  if (fontError) {
+    // You can add better error handling here
+    return <Text>Error loading fonts</Text>;
+  }
 
-  // If the user is not logged in, decide which screen to show
   if (!user) {
     if (showSignup) {
-      // Show SignupScreen and pass a function to switch back to login
       return <SignupScreen onSignupSuccess={() => setShowSignup(false)} />;
     }
-    // Show LoginScreen and pass a function to switch to signup
     return <LoginScreen onShowSignup={() => setShowSignup(true)} />;
   }
 
-  // If the user is logged in, show the main app
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="leaderboard" options={{ presentation: 'modal', title: 'Leaderboard' }} />
+        <Stack.Screen name="skill/[id]" options={{ presentation: 'modal', title: 'Update Skill' }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />

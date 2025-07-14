@@ -13,20 +13,12 @@ const HomeScreen = () => {
       setLoading(false);
       return;
     }
-
     const fetchUserData = async () => {
       try {
-        // Create a reference to the user's document in Firestore
         const userDocRef = doc(db, 'users', user.uid);
-
-        // Fetch the document
         const docSnap = await getDoc(userDocRef);
-
         if (docSnap.exists()) {
-          // Set the username from the document data
           setUsername(docSnap.data().username);
-        } else {
-          console.log("No such user document!");
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -34,7 +26,6 @@ const HomeScreen = () => {
         setLoading(false);
       }
     };
-
     fetchUserData();
   }, [user]);
 
@@ -58,16 +49,17 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // A dark brown background color
-    backgroundColor: '#3d2f2f',
+    backgroundColor: '#1A1A1A', // Using our new background color
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   welcomeText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    // Applying the new font
+    fontFamily: 'PressStart2P', 
+    fontSize: 24, // Adjusted font size for a pixel font
+    lineHeight: 40, // Adjusted line height for readability
+    color: '#E0E0E0', // Using our new text color
     textAlign: 'center',
   },
 });
