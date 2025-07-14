@@ -13,6 +13,7 @@ const skillImageMap = {
 };
 
 const SkillDetailPage = () => {
+  // --- All existing logic remains the same ---
   const { id } = useLocalSearchParams();
   const router = useRouter();
   
@@ -87,8 +88,6 @@ const SkillDetailPage = () => {
             totalLevel += doc.data().level;
             skillCount++;
         });
-        
-        // This is the updated line with Math.round()
         const overallLevel = skillCount > 0 ? Math.round(totalLevel / skillCount) : 0;
         
         const userDocRef = doc(db, 'users', user.uid);
@@ -157,17 +156,18 @@ const SkillDetailPage = () => {
 };
 
 
+// --- Updated Styles ---
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#121212',
+        backgroundColor: '#1A1A1A',
         alignItems: 'center',
         padding: 20,
     },
     imageContainer: {
         height: '33%',
         width: '100%',
-        backgroundColor: '#1e1e1e',
+        backgroundColor: '#2C2C2C',
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 10,
@@ -179,10 +179,11 @@ const styles = StyleSheet.create({
         height: '80%',
     },
     skillName: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: '#fff',
+        fontFamily: 'PressStart2P',
+        fontSize: 24,
+        color: '#E0E0E0',
         marginBottom: 30,
+        textAlign: 'center',
     },
     timeInputContainer: {
         flexDirection: 'row',
@@ -197,42 +198,46 @@ const styles = StyleSheet.create({
         marginBottom: 40,
     },
     timeSeparator: {
-        color: '#fff',
+        fontFamily: 'Roboto',
+        color: '#E0E0E0',
         fontSize: 32,
         marginHorizontal: 10,
     },
     button: {
         width: 60,
         height: 60,
-        backgroundColor: '#333',
+        backgroundColor: '#2C2C2C',
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 30,
     },
     buttonText: {
-        color: '#fff',
+        fontFamily: 'Roboto',
+        color: '#E0E0E0',
         fontSize: 30,
     },
     textInput: {
         width: 80,
         height: 60,
-        borderColor: '#555',
+        borderColor: '#2C2C2C',
         borderWidth: 2,
         borderRadius: 10,
         textAlign: 'center',
-        color: '#fff',
+        color: '#E0E0E0',
+        fontFamily: 'Roboto',
         fontSize: 24,
         marginHorizontal: 10,
     },
     saveButton: {
-        backgroundColor: '#4CAF50',
+        backgroundColor: '#FFA726', // Using our new accent color
         paddingVertical: 15,
         paddingHorizontal: 40,
         borderRadius: 25,
     },
     saveButtonText: {
-        color: '#fff',
+        color: '#1A1A1A', // Dark text on a bright button for contrast
         fontSize: 18,
+        fontFamily: 'Roboto',
         fontWeight: 'bold',
     },
 });

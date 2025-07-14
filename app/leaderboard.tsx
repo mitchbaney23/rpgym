@@ -1,7 +1,7 @@
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
-import { db } from '../utils/firebaseConfig'; // Corrected the import path
+import { db } from '../utils/firebaseConfig';
 
 interface LeaderboardEntry {
   id: string;
@@ -14,7 +14,6 @@ const LeaderboardScreen = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
     const usersRef = collection(db, 'users');
     const q = query(usersRef, orderBy('overallLevel', 'desc'), limit(20));
 
@@ -52,7 +51,6 @@ const LeaderboardScreen = () => {
           <View style={styles.entryItem}>
             <Text style={styles.rank}>{index + 1}</Text>
             <Text style={styles.username}>{item.username}</Text>
-            {/* Removed .toFixed(2) */}
             <Text style={styles.level}>Lv. {item.overallLevel}</Text>
           </View>
         )}
@@ -61,22 +59,23 @@ const LeaderboardScreen = () => {
   );
 };
 
+// --- Updated Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#1A1A1A', // New background color
     padding: 20,
     paddingTop: 60,
   },
   header: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontFamily: 'PressStart2P', // New header font
+    fontSize: 24,
+    color: '#E0E0E0', // New text color
     marginBottom: 20,
     textAlign: 'center',
   },
   entryItem: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#2C2C2C', // New secondary background
     paddingVertical: 15,
     paddingHorizontal: 20,
     borderRadius: 10,
@@ -85,20 +84,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rank: {
+    fontFamily: 'Roboto', // New body font
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#a9a9a9',
+    color: '#E0E0E0',
     width: 40,
   },
   username: {
+    fontFamily: 'Roboto', // New body font
     fontSize: 18,
-    color: '#ffffff',
+    color: '#E0E0E0',
     flex: 1,
   },
   level: {
+    fontFamily: 'Roboto', // New body font
     fontSize: 18,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#FFA726', // New accent color
   },
 });
 
