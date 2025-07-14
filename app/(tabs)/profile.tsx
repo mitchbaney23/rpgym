@@ -1,16 +1,16 @@
 import { Link } from 'expo-router';
-import { sendPasswordResetEmail, signOut } from 'firebase/auth'; // Import sendPasswordResetEmail
+import { sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native'; // Import Alert
+import { ActivityIndicator, Alert, Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { auth, db } from '../../utils/firebaseConfig';
 
-// ... Quest interface and placeholder data remain the same ...
 interface Quest {
   id: string;
   title: string;
   completed: boolean;
 }
+
 const placeholderQuests: Quest[] = [
   { id: '1', title: 'Logged in successfully 3 days in a row', completed: false },
   { id: '2', title: 'Complete your first workout', completed: true },
@@ -24,7 +24,6 @@ const ProfileScreen = () => {
   const [loading, setLoading] = useState(true);
   const user = auth.currentUser;
 
-  // --- NEW FUNCTION ---
   const handleChangePassword = () => {
     if (user?.email) {
       sendPasswordResetEmail(auth, user.email)
@@ -49,7 +48,6 @@ const ProfileScreen = () => {
     }
   };
 
-  // ... useEffect hook remains the same ...
   useEffect(() => {
     const fetchUserData = async () => {
       if (user) {
@@ -74,7 +72,7 @@ const ProfileScreen = () => {
       
       <Link href="/leaderboard" asChild>
         <Pressable style={styles.leaderboardButton}>
-          <Text style={styles.leaderboardButtonText}>🏆 View Leaderboard</Text>
+          <Text style={styles.buttonText}>🏆 View Leaderboard</Text>
         </Pressable>
       </Link>
 
@@ -96,9 +94,8 @@ const ProfileScreen = () => {
         />
       </View>
 
-      {/* --- NEW BUTTON & UPDATED SIGN OUT --- */}
       <View style={styles.buttonContainer}>
-        <Button title="Change Password" onPress={handleChangePassword} color="#007BFF" />
+        <Button title="Change Password" onPress={handleChangePassword} color="#FFA726" />
         <View style={{ height: 10 }} />
         <Button title="Sign Out" onPress={handleSignOut} color="#ff4757" />
       </View>
@@ -106,19 +103,17 @@ const ProfileScreen = () => {
   );
 };
 
-
-// Updated styles to handle multiple buttons
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#121212',
+        backgroundColor: '#1A1A1A',
         padding: 20,
         paddingTop: 60,
     },
     username: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: '#ffffff',
+        fontFamily: 'PressStart2P',
+        fontSize: 24,
+        color: '#E0E0E0',
         textAlign: 'center',
         marginBottom: 20,
     },
@@ -129,7 +124,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 30,
     },
-    leaderboardButtonText: {
+    buttonText: {
+        fontFamily: 'Roboto',
         color: '#ffffff',
         fontSize: 18,
         fontWeight: 'bold',
@@ -139,13 +135,13 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     sectionTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#ffffff',
+        fontFamily: 'PressStart2P',
+        fontSize: 20,
+        color: '#E0E0E0',
         marginBottom: 15,
     },
     questItem: {
-        backgroundColor: '#1e1e1e',
+        backgroundColor: '#2C2C2C',
         padding: 15,
         borderRadius: 10,
         marginBottom: 10,
@@ -154,8 +150,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     questTitle: {
+        fontFamily: 'Roboto',
         fontSize: 16,
-        color: '#ffffff',
+        color: '#E0E0E0',
         flex: 1,
     },
     completedQuest: {
@@ -168,7 +165,7 @@ const styles = StyleSheet.create({
     },
     buttonContainer: {
         paddingTop: 20,
-        borderTopColor: '#333',
+        borderTopColor: '#2C2C2C',
         borderTopWidth: 1,
     },
 });

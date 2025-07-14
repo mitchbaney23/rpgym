@@ -106,23 +106,23 @@ const SkillTreeScreen = () => {
   );
 };
 
-// --- Styles remain the same ---
+// --- Updated Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#1A1A1A',
     padding: 20,
     paddingTop: 60,
   },
   header: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontFamily: 'PressStart2P',
+    fontSize: 24,
+    color: '#E0E0E0',
     marginBottom: 20,
     textAlign: 'center',
   },
   skillItem: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#2C2C2C',
     padding: 20,
     borderRadius: 10,
     marginBottom: 15,
@@ -133,12 +133,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   skillName: {
+    fontFamily: 'Roboto',
     fontSize: 18,
-    color: '#ffffff',
+    color: '#E0E0E0',
   },
   skillLevel: {
+    fontFamily: 'Roboto',
     fontSize: 18,
-    color: '#a9a9a9',
+    color: '#FFA726', // Using accent color for the level
     fontWeight: '600',
   },
 });
