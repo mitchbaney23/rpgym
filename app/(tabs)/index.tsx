@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-// 1. Import the Image component
+// 1. Import the Dimensions and Image components
 import { doc, getDoc } from 'firebase/firestore';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 import { auth, db } from '../../utils/firebaseConfig';
+
+// 2. Get the width of the screen
+const { width: screenWidth } = Dimensions.get('window');
 
 const HomeScreen = () => {
   const [username, setUsername] = useState('');
@@ -10,7 +13,7 @@ const HomeScreen = () => {
   const user = auth.currentUser;
 
   useEffect(() => {
-    // ... this logic remains the same ...
+    // ...this logic remains the same...
     if (!user) {
       setLoading(false);
       return;
@@ -41,7 +44,6 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* 2. Add the Image component to display the GIF */}
       <Image
         source={require('../../assets/images/guide-character.gif')}
         style={styles.characterImage}
@@ -61,16 +63,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  // 3. Add a new style for our character image
   characterImage: {
     width: 150,
     height: 150,
     marginBottom: 20,
   },
   welcomeText: {
-    fontFamily: 'PressStart2P', 
-    fontSize: 32,
-    lineHeight: 40,
+    fontFamily: 'PressStart2P',
+    // 3. Set a dynamic font size based on screen width, but cap it at 32
+    fontSize: Math.min(screenWidth * 0.08, 32),
+    // 4. Set a proportional line height
+    lineHeight: Math.min(screenWidth * 0.08, 32) * 1.3,
     color: '#E0E0E0',
     textAlign: 'center',
   },
