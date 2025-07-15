@@ -1,6 +1,7 @@
-import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+// 1. Import the Image component
+import { doc, getDoc } from 'firebase/firestore';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { auth, db } from '../../utils/firebaseConfig';
 
 const HomeScreen = () => {
@@ -9,6 +10,7 @@ const HomeScreen = () => {
   const user = auth.currentUser;
 
   useEffect(() => {
+    // ... this logic remains the same ...
     if (!user) {
       setLoading(false);
       return;
@@ -39,8 +41,13 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
+      {/* 2. Add the Image component to display the GIF */}
+      <Image
+        source={require('../../assets/images/guide-character.gif')}
+        style={styles.characterImage}
+      />
       <Text style={styles.welcomeText}>
-        Welcome to the RPGym, {username}
+        Welcome to RPGym, {username}
       </Text>
     </View>
   );
@@ -49,17 +56,22 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1A1A1A', // Using our new background color
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
+  // 3. Add a new style for our character image
+  characterImage: {
+    width: 150,
+    height: 150,
+    marginBottom: 20,
+  },
   welcomeText: {
-    // Applying the new font
     fontFamily: 'PressStart2P', 
-    fontSize: 24, // Adjusted font size for a pixel font
-    lineHeight: 40, // Adjusted line height for readability
-    color: '#E0E0E0', // Using our new text color
+    fontSize: 32,
+    lineHeight: 40,
+    color: '#E0E0E0',
     textAlign: 'center',
   },
 });
