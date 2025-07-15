@@ -49,7 +49,7 @@ const HomeScreen = () => {
         style={styles.characterImage}
       />
       <Text style={styles.welcomeText}>
-        Welcome to RPGym, {username}
+        Welcome to the RPGym, {username}
       </Text>
     </View>
   );
@@ -71,9 +71,9 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontFamily: 'PressStart2P',
     // 3. Set a dynamic font size based on screen width, but cap it at 32
-    fontSize: Math.min(screenWidth * 0.08, 32),
+    fontSize: Math.min(screenWidth * 0.08, 24),
     // 4. Set a proportional line height
-    lineHeight: Math.min(screenWidth * 0.08, 32) * 1.3,
+    lineHeight: Math.min(screenWidth * 0.08, 24) * 1.3,
     color: '#E0E0E0',
     textAlign: 'center',
   },
