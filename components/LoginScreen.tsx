@@ -1,6 +1,6 @@
 import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import React, { useState } from 'react';
-import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { auth } from '../utils/firebaseConfig';
 
 export default function LoginScreen({ onShowSignup }: { onShowSignup: () => void }) {
@@ -23,24 +23,24 @@ export default function LoginScreen({ onShowSignup }: { onShowSignup: () => void
 
   const handleForgotPassword = () => {
     if (!email) {
-      Alert.alert("Enter Email", "Please enter your email address in the field above to reset your password.");
+      Alert.alert("Enter Email", "Please enter your email address to reset your password.");
       return;
     }
     sendPasswordResetEmail(auth, email)
       .then(() => {
         Alert.alert("Check Your Email", `A password reset link has been sent to ${email}.`);
       })
-      .catch((error) => {
-        console.error("Error sending password reset email:", error);
+      .catch(() => {
         setError("Failed to send reset email. Please try again.");
       });
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      <Text style={styles.title}>RPGym</Text>
       <TextInput
         placeholder="Email"
+        placeholderTextColor="#888"
         value={email}
         onChangeText={setEmail}
         style={styles.input}
@@ -49,19 +49,25 @@ export default function LoginScreen({ onShowSignup }: { onShowSignup: () => void
       />
       <TextInput
         placeholder="Password"
+        placeholderTextColor="#888"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
         style={styles.input}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.buttonContainer}>
-        <Button title="Login" onPress={handleLogin} />
-        <View style={styles.spacer} />
-        <Button title="Forgot Password?" onPress={handleForgotPassword} color="#888" />
-        <View style={styles.spacer} />
-        <Button title="Sign Up" onPress={onShowSignup} />
-      </View>
+      
+      <Pressable style={styles.buttonPrimary} onPress={handleLogin}>
+        <Text style={styles.buttonTextPrimary}>Login</Text>
+      </Pressable>
+
+      <Pressable style={styles.buttonSecondary} onPress={handleForgotPassword}>
+        <Text style={styles.buttonTextSecondary}>Forgot Password?</Text>
+      </Pressable>
+      
+      <Pressable style={styles.buttonSecondary} onPress={onShowSignup}>
+        <Text style={styles.buttonTextSecondary}>Don't have an account? Sign Up</Text>
+      </Pressable>
     </View>
   );
 }
@@ -70,29 +76,53 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     justifyContent: 'center', 
-    padding: 20 
+    padding: 20,
+    backgroundColor: '#1A1A1A',
   },
   title: { 
-    fontSize: 24, 
-    marginBottom: 20, 
-    textAlign: 'center' 
+    fontFamily: 'PressStart2P',
+    fontSize: 32, 
+    marginBottom: 30, 
+    textAlign: 'center',
+    color: '#E0E0E0',
   },
-  input: { 
+  input: {
+    fontFamily: 'Roboto', 
+    backgroundColor: '#2C2C2C',
+    color: '#E0E0E0',
     borderWidth: 1, 
-    borderColor: '#ddd',
-    padding: 12,
+    borderColor: '#2C2C2C',
+    padding: 15,
     marginBottom: 10,
-    borderRadius: 6,
+    borderRadius: 10,
+    fontSize: 16,
   },
   error: { 
-    color: 'red', 
+    fontFamily: 'Roboto',
+    color: '#ff4757', 
     marginBottom: 10,
     textAlign: 'center',
   },
-  buttonContainer: {
+  buttonPrimary: {
+    backgroundColor: '#FFA726',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
     marginTop: 10,
   },
-  spacer: {
-    height: 10,
+  buttonTextPrimary: {
+    fontFamily: 'Roboto',
+    color: '#1A1A1A',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  buttonSecondary: {
+    padding: 15,
+    alignItems: 'center',
+  },
+  buttonTextSecondary: {
+    fontFamily: 'Roboto',
+    color: '#FFA726',
+    fontSize: 14,
   }
 });
