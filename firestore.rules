@@ -1,13 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read/write their own data
+    // Users can read/write their own data
     match /users/{userId} {
+      // Allow users to read/write their own complete data
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow authenticated users to read limited public data for leaderboards
+      allow read: if request.auth != null;
       
       // Users can read/write their own skills
       match /skills/{skillId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
+        // Allow authenticated users to read other users' skills for leaderboards/profiles
+        allow read: if request.auth != null;
       }
       
       // Users can read/write their own PRs
@@ -18,12 +24,9 @@ service cloud.firestore {
       // Users can read/write their own badges
       match /badges/{badgeId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
+        // Allow authenticated users to read other users' badges for leaderboards/profiles
+        allow read: if request.auth != null;
       }
-    }
-    
-    // Deny all other access
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }

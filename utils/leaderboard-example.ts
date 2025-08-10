@@ -17,29 +17,62 @@ import type { LeaderboardEntry } from './leaderboard';
  */
 export const fetchLeaderboard = async (limitCount: number = 10): Promise<LeaderboardEntry[]> => {
   try {
-    // For now, return mock data with some real user data mixed in
-    // TODO: Implement real Firestore queries when rules are updated
-    
-    const mockData = getMockLeaderboard();
-    
-    // Try to add current user if available
-    // This will require updated Firestore rules to work properly
-    /*
+    // Fetch all users and sort client-side to avoid needing complex indexes
     const usersQuery = query(
       collection(firestore, 'users'),
-      orderBy('overallLevel', 'desc'),
-      orderBy('streakCount', 'desc'),
-      limit(limitCount)
+      orderBy('overallLevel', 'desc')
     );
     
     const usersSnapshot = await getDocs(usersQuery);
-    // ... rest of real implementation
-    */
+    const realUsers: LeaderboardEntry[] = [];
     
-    return mockData.slice(0, limitCount);
+    // Process each user document
+    for (const userDoc of usersSnapshot.docs) {
+      const userData = userDoc.data();
+      
+      // Get badges count for this user
+      const badgesSnapshot = await getDocs(collection(firestore, 'users', userDoc.id, 'badges'));
+      const totalBadges = badgesSnapshot.size;
+      
+      realUsers.push({
+        uid: userDoc.id,
+        displayName: userData.displayName || 'Anonymous',
+        overallLevel: userData.overallLevel || 0,
+        streakCount: userData.streakCount || 0,
+        totalBadges,
+        lastUpdated: userData.lastUpdated?.toDate() || new Date(),
+      });
+    }
+    
+    // Sort client-side and limit results
+    realUsers.sort((a, b) => {
+      // Primary sort: Overall Level (descending)
+      if (b.overallLevel !== a.overallLevel) {
+        return b.overallLevel - a.overallLevel;
+      }
+      
+      // Secondary sort: Streak Count (descending)
+      if (b.streakCount !== a.streakCount) {
+        return b.streakCount - a.streakCount;
+      }
+      
+      // Tertiary sort: Total Badges (descending)
+      const aBadges = a.totalBadges || 0;
+      const bBadges = b.totalBadges || 0;
+      return bBadges - aBadges;
+    });
+    
+    // If we have real users, return them; otherwise fall back to mock data
+    if (realUsers.length > 0) {
+      return realUsers.slice(0, limitCount);
+    }
+    
+    // Fallback to mock data if no real users exist yet
+    return getMockLeaderboard().slice(0, limitCount);
     
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
+    // Fall back to mock data on error
     return getMockLeaderboard().slice(0, limitCount);
   }
 };
