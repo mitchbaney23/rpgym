@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   levelIndicator: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.panel,
     borderRadius: 20,
     width: 40,
     height: 40,

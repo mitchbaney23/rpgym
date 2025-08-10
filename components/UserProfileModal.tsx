@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryCard: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     margin: layout.screenPaddingHorizontal,
     borderRadius: radii.xl,
     padding: spacing[6],
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     gap: spacing[4],
   },
   skillCard: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     borderRadius: radii.lg,
     padding: spacing[4],
     flexDirection: 'row',

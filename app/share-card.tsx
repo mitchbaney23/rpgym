@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenPaddingHorizontal,
   },
   shareCard: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     borderRadius: radii.xl,
     padding: spacing[6],
     shadowColor: colors.shadowDark,

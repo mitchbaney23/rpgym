@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenPaddingHorizontal,
   },
   skillCard: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     borderRadius: radii.lg,
     marginBottom: spacing[4],
     padding: spacing[4],

@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   logPRSection: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     marginHorizontal: layout.screenPaddingHorizontal,
     marginBottom: spacing[6],
     padding: spacing[6],

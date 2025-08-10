@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   leaderboardItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     borderRadius: radii.lg,
     padding: spacing[4],
     marginBottom: spacing[3],

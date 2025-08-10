@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     padding: spacing[4],
     borderRadius: radii.lg,
     alignItems: 'center',
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-around',
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     padding: spacing[4],
     borderRadius: radii.lg,
     shadowColor: colors.shadow,
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   emptyBadges: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     padding: spacing[8],
     borderRadius: radii.lg,
     alignItems: 'center',
