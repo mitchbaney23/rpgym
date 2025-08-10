@@ -6,6 +6,7 @@ import {
   ViewStyle,
   TextStyle,
   Animated,
+  Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing, radii, layout, animation } from '../theme/tokens';
@@ -99,7 +100,15 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
         disabled={disabled}
         activeOpacity={0.8}
       >
-        <Text style={[...getTextStyles(), disabled && styles.disabledText, textStyle]}>
+        <Text 
+          style={[
+            ...getTextStyles(), 
+            disabled && styles.disabledText, 
+            styles.buttonText,
+            textStyle
+          ]}
+          numberOfLines={1}
+        >
           {title}
         </Text>
       </TouchableOpacity>
@@ -113,6 +122,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radii.md,
     borderWidth: 1,
+  },
+  
+  // Button text specific styles
+  buttonText: {
+    textAlign: 'center',
+    flexShrink: 0,
+    ...(Platform.OS === 'web' && {
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    } as any),
   },
   
   // Sizes
