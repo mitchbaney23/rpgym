@@ -3,14 +3,13 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 
 import { colors } from '../../theme/tokens';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
   color: string;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome size={24} style={{ marginBottom: 0 }} {...props} />;
 }
 
 export default function TabLayout() {
@@ -23,10 +22,20 @@ export default function TabLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.stroke,
           borderTopWidth: 1,
+          paddingTop: 8,
+          paddingBottom: 8,
+          height: 80,
         },
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginBottom: 2,
+        },
+        // Hide headers completely - use bottom tab highlighting instead
+        headerShown: false,
       }}>
       <Tabs.Screen
         name="index"
