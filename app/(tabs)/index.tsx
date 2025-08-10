@@ -9,14 +9,12 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAppStore, initializeAuth } from '../../lib/store';
-import { ProgressRing } from '../../components/ProgressRing';
 import { StreakFlame } from '../../components/StreakFlame';
 import { NeonButton } from '../../components/NeonButton';
 import { LevelUpBanner } from '../../components/LevelUpBanner';
 import { RetroBackground } from '../../components/RetroBackground';
 import { useThemedStyles } from '../../theme/useThemedStyles';
-import { colors, spacing, skillColors } from '../../theme/tokens';
-import { SKILL_DISPLAY_NAMES } from '../../types/domain';
+import { colors, spacing } from '../../theme/tokens';
 import * as Haptics from 'expo-haptics';
 
 export default function HomeScreen() {
@@ -24,7 +22,6 @@ export default function HomeScreen() {
     user,
     isAuthenticated,
     isLoading,
-    skills,
     levelUpEvent,
     setLevelUpEvent,
     loadUserData,
@@ -46,21 +43,26 @@ export default function HomeScreen() {
     scrollView: {
       flex: 1,
     },
+    scrollViewContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+    },
     header: {
       paddingHorizontal: theme.layout.screenPaddingHorizontal,
-      paddingTop: theme.spacing.lg,
-      paddingBottom: theme.spacing.xl,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: theme.spacing.md,
       alignItems: 'center',
     },
     greeting: {
       ...theme.typography.h2,
+      fontSize: 20,
       textAlign: 'center',
-      marginBottom: theme.spacing.md,
+      marginBottom: theme.spacing.sm,
     },
     overallLevelCard: {
       backgroundColor: theme.colors.panel,
       borderRadius: theme.radii.xl,
-      marginTop: theme.spacing.lg,
+      marginTop: theme.spacing.sm,
       padding: theme.spacing.xl,
       borderWidth: 1,
       borderColor: theme.colors.stroke,
@@ -74,95 +76,44 @@ export default function HomeScreen() {
       alignItems: 'center',
     },
     overallLevelLabel: {
-      ...theme.typography.label,
+      ...theme.typography.labelLarge,
+      fontSize: 14,
       marginBottom: theme.spacing.xs,
     },
     overallLevel: {
       ...theme.typography.numberHuge,
+      fontSize: 42,
       color: theme.colors.accentAlt,
       textAlign: 'center',
       marginBottom: theme.spacing.xs,
     },
     overallLevelSubtext: {
-      ...theme.typography.bodySmall,
+      ...theme.typography.body,
+      fontSize: 16,
       textAlign: 'center',
       fontStyle: 'italic',
     },
     streakSection: {
       alignItems: 'center',
-      paddingVertical: theme.spacing.xl,
+      paddingTop: theme.spacing.lg,
+      paddingBottom: theme.spacing.xl,
       paddingHorizontal: theme.layout.screenPaddingHorizontal,
     },
     streakDescription: {
-      ...theme.typography.label,
-      marginTop: theme.spacing.sm,
-    },
-    skillsSection: {
-      paddingHorizontal: theme.layout.screenPaddingHorizontal,
-      paddingVertical: theme.spacing.xl,
-    },
-    sectionTitle: {
-      ...theme.typography.h3,
-      marginBottom: theme.spacing.lg,
-      textAlign: 'center',
-    },
-    skillsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'space-around',
-      alignItems: 'flex-start',
-    },
-    skillItem: {
-      alignItems: 'center',
-      marginBottom: theme.spacing.xl,
-      width: '45%',
-    },
-    skillName: {
       ...theme.typography.labelLarge,
       fontSize: 14,
       marginTop: theme.spacing.sm,
-      textAlign: 'center',
-      color: theme.colors.text,
-      textShadowColor: '#000',
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
-    skillBest: {
-      ...theme.typography.caption,
-      fontSize: 12,
-      marginTop: theme.spacing.xs,
-      textAlign: 'center',
-      color: theme.colors.text,
-      opacity: 0.9,
-      textShadowColor: '#000',
-      textShadowOffset: { width: 0, height: 0.5 },
-      textShadowRadius: 1,
     },
     actionSection: {
       paddingHorizontal: theme.layout.screenPaddingHorizontal,
-      paddingVertical: theme.spacing.xl,
+      paddingTop: theme.spacing.xl,
+      paddingBottom: theme.spacing.lg,
       alignItems: 'center',
     },
     logPRButton: {
-      width: '100%',
-      maxWidth: 300,
-    },
-    loadingSkills: {
-      alignItems: 'center',
-      paddingVertical: theme.spacing.xxl,
-    },
-    emptySkills: {
-      alignItems: 'center',
-      paddingVertical: theme.spacing.xxl,
-    },
-    emptySkillsText: {
-      ...theme.typography.body,
-      color: theme.colors.textDim,
-      textAlign: 'center',
-      marginBottom: theme.spacing.lg,
-    },
-    refreshButton: {
-      marginTop: theme.spacing.sm,
+      width: '90%',
+      maxWidth: 400,
+      height: 60,
     },
   }));
 
@@ -220,6 +171,7 @@ export default function HomeScreen() {
         
         <ScrollView
           style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContent}
           refreshControl={
             <RefreshControl 
               refreshing={isLoading} 
@@ -229,6 +181,7 @@ export default function HomeScreen() {
             />
           }
         >
+        {/* Overall Level Section at Top */}
         <View style={styles.header}>
           <Text style={styles.greeting}>
             WELCOME BACK, {user.displayName?.toUpperCase()}!
@@ -249,58 +202,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={styles.streakSection}>
-          <StreakFlame
-            streakCount={user.streakCount}
-            size={80}
-            showText={true}
-          />
-          <Text style={styles.streakDescription}>
-            DAILY STREAK
-          </Text>
-        </View>
 
-        <View style={styles.skillsSection}>
-          <Text style={styles.sectionTitle}>YOUR SKILLS</Text>
-          {isLoading && skills.length === 0 ? (
-            <View style={styles.loadingSkills}>
-              <Text style={styles.loadingText}>LOADING YOUR SKILLS...</Text>
-            </View>
-          ) : skills.length === 0 ? (
-            <View style={styles.emptySkills}>
-              <Text style={styles.emptySkillsText}>
-                INITIALIZING YOUR FITNESS JOURNEY...
-              </Text>
-              <NeonButton
-                title="REFRESH"
-                onPress={handleRefresh}
-                variant="outline"
-                size="small"
-                style={styles.refreshButton}
-              />
-            </View>
-          ) : (
-            <View style={styles.skillsGrid}>
-              {skills.map((skill) => (
-                <View key={skill.id} style={styles.skillItem}>
-                  <ProgressRing
-                    level={skill.level}
-                    size={100}
-                    color={skillColors[skill.id] || colors.accentAlt}
-                    showLevel={true}
-                  />
-                  <Text style={styles.skillName}>
-                    {SKILL_DISPLAY_NAMES[skill.id].toUpperCase()}
-                  </Text>
-                  <Text style={styles.skillBest}>
-                    BEST: {skill.best || 0}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
+        {/* Centered Log PR Button */}
         <View style={styles.actionSection}>
           <NeonButton
             title="LOG PR"
@@ -308,6 +211,18 @@ export default function HomeScreen() {
             size="large"
             style={styles.logPRButton}
           />
+        </View>
+
+        {/* Daily Streak Below Button */}
+        <View style={styles.streakSection}>
+          <StreakFlame
+            streakCount={user.streakCount}
+            size={90}
+            showText={true}
+          />
+          <Text style={styles.streakDescription}>
+            DAILY STREAK
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>

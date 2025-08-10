@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import Svg, { Rect, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { colors, spacing } from '../theme/tokens';
 import { typography } from '../theme/typography';
 import { useFonts } from '../hooks/useFonts';
@@ -18,12 +18,13 @@ export const StreakFlame: React.FC<StreakFlameProps> = ({
 }) => {
   const fontsLoaded = useFonts();
   const glowAnim = useRef(new Animated.Value(0)).current;
+  const flickerAnim = useRef(new Animated.Value(1)).current;
   
-  // Calculate thermometer fill based on streak
-  // Every 5 days = one segment, max 20 segments (100 days)
-  const maxStreak = 100;
-  const fillPercentage = Math.min(streakCount / maxStreak, 1);
-  const segmentCount = Math.floor(streakCount / 5);
+  // Calculate flame size based on streak, maxes out at 5 days
+  const maxStreak = 5;
+  const flameScale = Math.min(streakCount / maxStreak, 1);
+  const flameHeight = size * (0.4 + (flameScale * 0.6)); // Grows from 40% to 100% of size
+  const flameWidth = size * (0.3 + (flameScale * 0.4)); // Grows proportionally
   
   useEffect(() => {
     // Glow animation when streak increments
@@ -43,105 +44,116 @@ export const StreakFlame: React.FC<StreakFlameProps> = ({
     }
   }, [streakCount, glowAnim]);
 
-  const thermometerGlow = glowAnim.interpolate({
+  useEffect(() => {
+    // Continuous flickering animation when streak is active
+    if (streakCount > 0) {
+      const flickerLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(flickerAnim, {
+            toValue: 0.85,
+            duration: 100 + Math.random() * 200,
+            useNativeDriver: false,
+          }),
+          Animated.timing(flickerAnim, {
+            toValue: 1,
+            duration: 100 + Math.random() * 200,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      flickerLoop.start();
+      return () => flickerLoop.stop();
+    }
+  }, [streakCount, flickerAnim]);
+
+  const flameGlow = glowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 8],
+    outputRange: [0, 12],
   });
 
-  const thermometerWidth = size * 0.3;
-  const thermometerHeight = size * 0.8;
-  const fillHeight = thermometerHeight * fillPercentage;
-  
-  // Create tick marks every 5 days
-  const renderTickMarks = () => {
-    const ticks = [];
-    const tickCount = 10; // 10 ticks for 50 days
-    const tickSpacing = thermometerHeight / tickCount;
+  // Create flame path based on size
+  const createFlamePath = () => {
+    const centerX = flameWidth / 2;
+    const baseY = flameHeight;
+    const tipY = 0;
     
-    for (let i = 1; i <= tickCount; i++) {
-      const y = thermometerHeight - (i * tickSpacing);
-      const isActive = i * 5 <= streakCount;
-      
-      ticks.push(
-        <View
-          key={i}
-          style={[
-            styles.tick,
-            {
-              left: thermometerWidth + 4,
-              top: y - 1,
-              backgroundColor: isActive ? colors.accentAlt : colors.stroke,
-              opacity: isActive ? 1 : 0.3,
-            }
-          ]}
-        />
-      );
-    }
-    return ticks;
+    return `
+      M ${centerX} ${baseY}
+      Q ${flameWidth * 0.2} ${baseY * 0.8} ${flameWidth * 0.1} ${baseY * 0.6}
+      Q ${flameWidth * 0.15} ${baseY * 0.4} ${flameWidth * 0.3} ${baseY * 0.3}
+      Q ${flameWidth * 0.4} ${baseY * 0.15} ${centerX} ${tipY}
+      Q ${flameWidth * 0.6} ${baseY * 0.15} ${flameWidth * 0.7} ${baseY * 0.3}
+      Q ${flameWidth * 0.85} ${baseY * 0.4} ${flameWidth * 0.9} ${baseY * 0.6}
+      Q ${flameWidth * 0.8} ${baseY * 0.8} ${centerX} ${baseY}
+      Z
+    `;
   };
+
+  // Get flame colors based on intensity
+  const getFlameColors = () => {
+    if (streakCount === 0) return { main: colors.stroke, secondary: colors.strokeDim };
+    if (streakCount >= 5) return { main: colors.success, secondary: colors.gold }; // Max intensity: blue-white
+    if (streakCount >= 3) return { main: colors.gold, secondary: colors.accent }; // High: gold-orange
+    return { main: colors.accent, secondary: colors.danger }; // Low: orange-red
+  };
+
+  const flameColors = getFlameColors();
 
   return (
     <View style={[styles.container, { width: size, height: size + (showText ? 32 : 0) }]}>
       <Animated.View
         style={[
-          styles.thermometerContainer,
+          styles.flameContainer,
           {
-            shadowColor: colors.accent,
-            shadowRadius: thermometerGlow,
-            shadowOpacity: 0.6,
+            shadowColor: flameColors.main,
+            shadowRadius: flameGlow,
+            shadowOpacity: streakCount > 0 ? 0.8 : 0,
             shadowOffset: { width: 0, height: 0 },
+            transform: [{ scale: flickerAnim }],
           }
         ]}
       >
-        {/* Thermometer background */}
-        <View style={[styles.thermometerBg, { width: thermometerWidth, height: thermometerHeight }]}>
-          
-          {/* SVG gradient fill */}
-          <Svg width={thermometerWidth} height={thermometerHeight} style={StyleSheet.absoluteFill}>
+        {streakCount > 0 ? (
+          <Svg width={flameWidth} height={flameHeight} style={styles.flame}>
             <Defs>
-              <SvgLinearGradient id="streakGradient" x1="0%" y1="100%" x2="0%" y2="0%">
-                <Stop offset="0%" stopColor={colors.accent} stopOpacity="1" />
-                <Stop offset="70%" stopColor={colors.gold} stopOpacity="1" />
-                <Stop offset="100%" stopColor={colors.success} stopOpacity="1" />
+              <SvgLinearGradient id="flameGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+                <Stop offset="0%" stopColor={flameColors.secondary} stopOpacity="1" />
+                <Stop offset="30%" stopColor={flameColors.main} stopOpacity="1" />
+                <Stop offset="70%" stopColor={flameColors.main} stopOpacity="0.9" />
+                <Stop offset="100%" stopColor={colors.white} stopOpacity="0.8" />
+              </SvgLinearGradient>
+              
+              <SvgLinearGradient id="flameCore" x1="0%" y1="100%" x2="0%" y2="0%">
+                <Stop offset="0%" stopColor={flameColors.main} stopOpacity="0.6" />
+                <Stop offset="50%" stopColor={colors.gold} stopOpacity="0.4" />
+                <Stop offset="100%" stopColor={colors.white} stopOpacity="0.2" />
               </SvgLinearGradient>
             </Defs>
             
-            {/* Filled portion */}
-            <Rect
-              x="2"
-              y={thermometerHeight - fillHeight}
-              width={thermometerWidth - 4}
-              height={fillHeight}
-              fill="url(#streakGradient)"
-              rx="2"
+            {/* Main flame */}
+            <Path d={createFlamePath()} fill="url(#flameGradient)" />
+            
+            {/* Inner flame core */}
+            <Path 
+              d={createFlamePath()} 
+              fill="url(#flameCore)" 
+              transform={`scale(0.6) translate(${flameWidth * 0.2}, ${flameHeight * 0.2})`}
             />
           </Svg>
-          
-          {/* Pixel segments overlay for raster effect */}
-          {Array.from({ length: Math.min(segmentCount, 20) }, (_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.segment,
-                {
-                  bottom: (i * (thermometerHeight / 20)) + 2,
-                  width: thermometerWidth - 6,
-                  backgroundColor: i % 2 === 0 ? 'rgba(255,255,255,0.1)' : 'transparent',
-                }
-              ]}
-            />
-          ))}
-        </View>
-        
-        {/* Tick marks */}
-        {renderTickMarks()}
+        ) : (
+          // Empty flame holder when no streak
+          <View style={[styles.emptyFlame, { width: size * 0.3, height: size * 0.4 }]} />
+        )}
       </Animated.View>
       
       {showText && (
         <View style={styles.textContainer}>
           <Text style={[
             fontsLoaded ? typography.statNumber : { ...typography.statNumber, fontFamily: 'monospace' },
-            { fontSize: 16, color: colors.accentAlt }
+            { 
+              fontSize: 16, 
+              color: streakCount > 0 ? flameColors.main : colors.textDim 
+            }
           ]}>
             {streakCount}
           </Text>
@@ -154,18 +166,18 @@ export const StreakFlame: React.FC<StreakFlameProps> = ({
         </View>
       )}
       
-      {/* Achievement sparkle */}
-      {streakCount > 0 && streakCount % 5 === 0 && (
+      {/* Achievement sparkle for max streak */}
+      {streakCount >= 5 && (
         <Animated.View
           style={[
             styles.achievementSparkle,
             {
-              opacity: glowAnim,
-              transform: [{ scale: glowAnim }],
+              opacity: flickerAnim,
+              transform: [{ scale: flickerAnim }],
             }
           ]}
         >
-          <Text style={styles.sparkleText}>✨</Text>
+          <Text style={styles.sparkleText}>🔥</Text>
         </Animated.View>
       )}
     </View>
@@ -177,29 +189,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  thermometerContainer: {
+  flameContainer: {
     position: 'relative',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: spacing.xs,
   },
-  thermometerBg: {
-    backgroundColor: colors.panel,
-    borderRadius: 6,
+  flame: {
+    alignSelf: 'center',
+  },
+  emptyFlame: {
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.stroke,
-    position: 'relative',
-  },
-  segment: {
-    position: 'absolute',
-    left: 3,
-    height: 2,
-    borderRadius: 1,
-  },
-  tick: {
-    position: 'absolute',
-    width: 6,
-    height: 2,
-    borderRadius: 1,
+    borderColor: colors.strokeDim,
+    backgroundColor: colors.panel,
+    opacity: 0.3,
   },
   textContainer: {
     alignItems: 'center',
@@ -207,10 +211,10 @@ const styles = StyleSheet.create({
   },
   achievementSparkle: {
     position: 'absolute',
-    top: -10,
-    right: -10,
+    top: -15,
+    right: -5,
   },
   sparkleText: {
-    fontSize: 20,
+    fontSize: 24,
   },
 });

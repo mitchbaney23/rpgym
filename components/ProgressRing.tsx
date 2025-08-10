@@ -28,9 +28,8 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
   // Progress is based on level (0-99 maps to 0-100%)
   const progress = Math.min(level / 99, 1);
   
-  // Create dashed effect for raster look
-  const dashArray = `${circumference / 40} ${circumference / 80}`;
-  const strokeDashoffset = circumference - (progress * circumference);
+  // Simple progress ring without dashes for now
+  const strokeDashoffset = circumference * (1 - progress);
   
   // Animation for level up effect
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -89,14 +88,14 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
             fill="transparent"
           />
           
-          {/* Progress ring with dashed segments */}
+          {/* Progress ring */}
           <Circle
             cx={center}
             cy={center}
             r={radius}
             stroke="url(#ringGradient)"
             strokeWidth={strokeWidth}
-            strokeDasharray={dashArray}
+            strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
             fill="transparent"
