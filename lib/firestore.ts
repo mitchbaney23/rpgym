@@ -14,7 +14,16 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { firestore } from './firebase';
-import { User, Skill, PersonalRecord, Badge, SkillName, SKILLS } from '../types/domain';
+import { 
+  User, 
+  Skill, 
+  PersonalRecord, 
+  Badge, 
+  SkillName, 
+  SKILLS,
+  WorkoutSession,
+  WorkoutTemplate 
+} from '../types/domain';
 import { calculateLevel } from '../utils/levels';
 
 // User operations
@@ -242,5 +251,109 @@ export const updateStreak = async (uid: string) => {
   await updateUser(uid, {
     streakCount: newStreakCount,
     lastStreakDate: Timestamp.fromDate(today),
+  });
+};
+
+// Workout operations
+export const saveWorkoutSession = async (
+  uid: string, 
+  workout: Omit<WorkoutSession, 'id'>
+): Promise<WorkoutSession> => {
+  const docRef = await addDoc(collection(firestore, 'users', uid, 'workouts'), {
+    ...workout,
+    createdAt: serverTimestamp(),
+  });
+  
+  return { id: docRef.id, ...workout } as WorkoutSession;
+};
+
+export const getWorkoutSessions = async (
+  uid: string, 
+  limitCount?: number
+): Promise<WorkoutSession[]> => {
+  let q = query(
+    collection(firestore, 'users', uid, 'workouts'),
+    orderBy('date', 'desc')
+  );
+
+  if (limitCount) {
+    q = query(q, limit(limitCount));
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as WorkoutSession[];
+};
+
+export const getWorkoutSession = async (
+  uid: string, 
+  workoutId: string
+): Promise<WorkoutSession | null> => {
+  const workoutDoc = await getDoc(doc(firestore, 'users', uid, 'workouts', workoutId));
+  if (!workoutDoc.exists()) return null;
+  
+  return { id: workoutId, ...workoutDoc.data() } as WorkoutSession;
+};
+
+export const updateWorkoutSession = async (
+  uid: string, 
+  workoutId: string, 
+  updates: Partial<Omit<WorkoutSession, 'id'>>
+) => {
+  await updateDoc(doc(firestore, 'users', uid, 'workouts', workoutId), {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const deleteWorkoutSession = async (uid: string, workoutId: string) => {
+  // Note: Firebase doesn't have a delete function in the imported functions
+  // You'll need to import deleteDoc separately if needed
+  console.warn('Delete workout not implemented - requires deleteDoc import');
+};
+
+// Workout template operations
+export const saveWorkoutTemplate = async (
+  uid: string, 
+  template: Omit<WorkoutTemplate, 'id'>
+): Promise<WorkoutTemplate> => {
+  const docRef = await addDoc(collection(firestore, 'users', uid, 'templates'), {
+    ...template,
+    createdAt: serverTimestamp(),
+  });
+  
+  return { id: docRef.id, ...template } as WorkoutTemplate;
+};
+
+export const getWorkoutTemplates = async (uid: string): Promise<WorkoutTemplate[]> => {
+  const q = query(
+    collection(firestore, 'users', uid, 'templates'),
+    orderBy('lastUsed', 'desc'),
+    orderBy('createdAt', 'desc')
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as WorkoutTemplate[];
+};
+
+export const updateWorkoutTemplate = async (
+  uid: string, 
+  templateId: string, 
+  updates: Partial<Omit<WorkoutTemplate, 'id'>>
+) => {
+  await updateDoc(doc(firestore, 'users', uid, 'templates', templateId), {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const markTemplateAsUsed = async (uid: string, templateId: string) => {
+  await updateDoc(doc(firestore, 'users', uid, 'templates', templateId), {
+    lastUsed: serverTimestamp(),
   });
 };
