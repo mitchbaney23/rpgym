@@ -253,7 +253,7 @@ export default function LogScreen() {
       if (editingWorkout) {
         // Update existing workout
         await updateWorkoutSession(user.uid, editingWorkout.id, workoutData);
-        Alert.alert('✅ Updated!', 'Workout updated successfully!', [
+        Alert.alert('\u2705 Updated!', 'Workout updated successfully!', [
           { text: 'OK', onPress: resetForm }
         ]);
       } else {
@@ -263,7 +263,7 @@ export default function LogScreen() {
         // Show success message with stats
         const message = `Workout saved!\n\nXP Earned: ${xpBreakdown.totalXP}\nPRs: ${prResults.length}\nLevels Gained: ${workoutData.levelsGained || 0}`;
         
-        Alert.alert('🎉 Success!', message, [
+        Alert.alert('\uD83C\uDF89 Success!', message, [
           { text: 'Awesome!', onPress: resetForm }
         ]);
       }
@@ -311,7 +311,7 @@ export default function LogScreen() {
         <ScrollView style={styles.scrollView}>
           <View style={styles.header}>
             <Text style={styles.title}>
-              {editingWorkout ? '✏️ EDIT WORKOUT' : '⚡ LOG WORKOUT'}
+              {editingWorkout ? '\u270F\uFE0F EDIT WORKOUT' : '\u26A1 LOG WORKOUT'}
             </Text>
             
             {/* History Toggle Button */}
@@ -502,7 +502,7 @@ const ExerciseBlockComponent: React.FC<ExerciseBlockProps> = ({
           <Text style={styles.exerciseTypeText}>{exercise.type.toUpperCase()}</Text>
         </View>
         <TouchableOpacity onPress={onRemove}>
-          <Text style={styles.removeButton}>✕</Text>
+          <Text style={styles.removeButton}>\u2715</Text>
         </TouchableOpacity>
       </View>
 
