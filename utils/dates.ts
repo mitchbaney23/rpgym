@@ -83,3 +83,10 @@ export const getRelativeTime = (date: Date): string => {
     return 'Just now';
   }
 };
+
+/**
+ * Get local date key in YYYY-MM-DD format for consistent date indexing
+ */
+export const localDateKey = (d: Date = new Date()): string => {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};

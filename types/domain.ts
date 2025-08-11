@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
 export type SkillName = 'pushups' | 'situps' | 'squats' | 'pullups' | '5k';
+export type WorkoutType = 'quest' | 'strength' | 'bodyweight' | 'endurance';
 
 export interface User {
   uid: string;
@@ -41,6 +42,18 @@ export interface LevelUpEvent {
   skillId: SkillName;
   newLevel: number;
   previousLevel: number;
+}
+
+export interface WorkoutDoc {
+  uid: string;
+  title: string;              // e.g., "Daily Quest"
+  type: WorkoutType;          // "quest" for this feature
+  date: string;               // "YYYY-MM-DD" local date key
+  durationMin?: number | null;
+  notes?: string;
+  rpe?: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 // UI State types

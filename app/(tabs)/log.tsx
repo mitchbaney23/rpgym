@@ -28,7 +28,7 @@ import {
 } from '../../types/domain';
 import { router } from 'expo-router';
 import { Timestamp } from 'firebase/firestore';
-import { saveWorkoutSession, getWorkoutSessions, updateWorkoutSession } from '../../lib/firestore';
+import { saveWorkoutSession, getWorkoutSessions, updateWorkoutSession, logDailyQuest } from '../../lib/firestore';
 import { detectPRsAndApply, calculateWorkoutXP } from '../../utils/pr';
 
 export default function LogScreen() {
@@ -45,6 +45,8 @@ export default function LogScreen() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<WorkoutSession | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showHistoryPage, setShowHistoryPage] = useState(false);
+  const [workoutCompletedToday, setWorkoutCompletedToday] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated && !isLoading) {
@@ -67,8 +69,51 @@ export default function LogScreen() {
     // Load workout history when user is authenticated
     if (user) {
       loadWorkoutHistory();
+      checkTodaysWorkoutStatus();
     }
   }, [user]);
+
+  const checkTodaysWorkoutStatus = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const history = await getWorkoutSessions(user.uid);
+      if (!history || !Array.isArray(history)) {
+        setWorkoutCompletedToday(false);
+        return;
+      }
+      
+      const today = new Date();
+      const todayString = today.toDateString();
+      
+      // Check if any workout was logged today
+      const hasWorkoutToday = history.some(workout => {
+        try {
+          if (!workout || !workout.date) return false;
+          
+          let workoutDate: Date;
+          if (typeof workout.date.toDate === 'function') {
+            workoutDate = workout.date.toDate();
+          } else if (typeof workout.date === 'string') {
+            workoutDate = new Date(workout.date);
+          } else if (workout.date instanceof Date) {
+            workoutDate = workout.date;
+          } else {
+            return false;
+          }
+          return workoutDate.toDateString() === todayString;
+        } catch (error) {
+          console.warn('Error checking workout date:', error);
+          return false;
+        }
+      });
+      
+      setWorkoutCompletedToday(hasWorkoutToday);
+    } catch (error) {
+      console.error('Failed to check today\'s workout status:', error);
+      setWorkoutCompletedToday(false);
+    }
+  };
 
   const loadWorkoutHistory = async () => {
     if (!user) return;
@@ -76,9 +121,10 @@ export default function LogScreen() {
     setIsLoadingHistory(true);
     try {
       const history = await getWorkoutSessions(user.uid, 20); // Get last 20 workouts
-      setWorkoutHistory(history);
+      setWorkoutHistory(Array.isArray(history) ? history : []);
     } catch (error) {
       console.error('Error loading workout history:', error);
+      setWorkoutHistory([]);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -86,13 +132,29 @@ export default function LogScreen() {
 
   const loadWorkoutForEditing = (workout: WorkoutSession) => {
     setEditingWorkout(workout);
+    
+    // Handle both Timestamp and string dates defensively
+    let workoutDate: Date;
+    try {
+      if (workout.date && typeof workout.date.toDate === 'function') {
+        workoutDate = workout.date.toDate();
+      } else if (typeof workout.date === 'string') {
+        workoutDate = new Date(workout.date);
+      } else {
+        workoutDate = new Date();
+      }
+    } catch (error) {
+      console.warn('Invalid workout date:', workout.date);
+      workoutDate = new Date();
+    }
+    
     setWorkoutForm({
-      title: workout.title,
-      date: workout.date.toDate(),
+      title: workout.title || '',
+      date: workoutDate,
       notes: workout.notes || '',
       durationMin: workout.durationMin?.toString() || '',
     });
-    setExercises(workout.exercises);
+    setExercises(workout.exercises || []);
     setShowHistory(false);
   };
 
@@ -151,10 +213,10 @@ export default function LogScreen() {
 
     const updates: Partial<ExerciseBlock> = {};
     
-    if (type === 'strength' && exercise.strengthSets) {
+    if (type === 'strength' && exercise.strengthSets && exercise.strengthSets.length > 0) {
       const lastSet = exercise.strengthSets[exercise.strengthSets.length - 1];
       updates.strengthSets = [...exercise.strengthSets, { ...lastSet }];
-    } else if (type === 'bodyweight' && exercise.bodyweightSets) {
+    } else if (type === 'bodyweight' && exercise.bodyweightSets && exercise.bodyweightSets.length > 0) {
       const lastSet = exercise.bodyweightSets[exercise.bodyweightSets.length - 1];
       updates.bodyweightSets = [...exercise.bodyweightSets, { ...lastSet }];
     }
@@ -185,6 +247,17 @@ export default function LogScreen() {
     }
 
     updateExercise(exerciseId, updates);
+  };
+
+  // Helper to remove undefined values from object
+  const cleanUndefinedValues = (obj: any): any => {
+    const cleaned: any = {};
+    Object.keys(obj).forEach(key => {
+      if (obj[key] !== undefined) {
+        cleaned[key] = obj[key];
+      }
+    });
+    return cleaned;
   };
 
   const parseTimeInput = (timeStr: string): number => {
@@ -239,32 +312,42 @@ export default function LogScreen() {
         xpBreakdown = calculateWorkoutXP(namedExercises, prResults);
       }
       
-      const workoutData = {
+      const workoutData: any = {
         title: workoutForm.title,
         date: Timestamp.fromDate(workoutForm.date),
         notes: workoutForm.notes,
-        durationMin: workoutForm.durationMin ? parseInt(workoutForm.durationMin) : undefined,
         exercises: namedExercises,
         totalXP: xpBreakdown.totalXP,
         prsDetected: prResults.length,
         levelsGained: prResults.reduce((total, pr) => total + (pr.levelAfter - pr.levelBefore), 0),
       };
+      
+      // Only add durationMin if it has a valid value
+      if (workoutForm.durationMin && workoutForm.durationMin.trim()) {
+        workoutData.durationMin = parseInt(workoutForm.durationMin);
+      }
 
       if (editingWorkout) {
         // Update existing workout
-        await updateWorkoutSession(user.uid, editingWorkout.id, workoutData);
+        await updateWorkoutSession(user.uid, editingWorkout.id, cleanUndefinedValues(workoutData));
         Alert.alert('\u2705 Updated!', 'Workout updated successfully!', [
-          { text: 'OK', onPress: resetForm }
+          { text: 'OK', onPress: () => {
+            setWorkoutCompletedToday(true);
+            resetForm();
+          }}
         ]);
       } else {
         // Save new workout
-        await saveWorkoutSession(user.uid, workoutData);
+        await saveWorkoutSession(user.uid, cleanUndefinedValues(workoutData));
         
         // Show success message with stats
         const message = `Workout saved!\n\nXP Earned: ${xpBreakdown.totalXP}\nPRs: ${prResults.length}\nLevels Gained: ${workoutData.levelsGained || 0}`;
         
         Alert.alert('\uD83C\uDF89 Success!', message, [
-          { text: 'Awesome!', onPress: resetForm }
+          { text: 'Awesome!', onPress: () => {
+            setWorkoutCompletedToday(true);
+            resetForm();
+          }}
         ]);
       }
 
@@ -295,6 +378,30 @@ export default function LogScreen() {
     });
   };
 
+  const handleDailyQuest = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const { streakCount } = await logDailyQuest(user.uid);
+      
+      Alert.alert(
+        '🎯 Daily Quest Complete!', 
+        `Great job moving today!\n\n🔥 Streak: ${streakCount} days`,
+        [
+          {
+            text: 'Continue',
+            style: 'default',
+            onPress: () => setWorkoutCompletedToday(true)
+          }
+        ]
+      );
+      
+    } catch (error) {
+      console.error('Failed to log daily quest:', error);
+      Alert.alert('Error', 'Could not save daily quest. Please try again.');
+    }
+  };
+
   if (!isAuthenticated || isLoading) {
     return (
       <RetroBackground showScanlines={crtOverlayEnabled}>
@@ -305,60 +412,65 @@ export default function LogScreen() {
     );
   }
 
-  return (
-    <RetroBackground showScanlines={crtOverlayEnabled}>
-      <SafeAreaView style={styles.container}>
-        <ScrollView style={styles.scrollView}>
-          <View style={styles.header}>
-            <Text style={styles.title}>
-              {editingWorkout ? '\u270F\uFE0F EDIT WORKOUT' : '\u26A1 LOG WORKOUT'}
-            </Text>
-            
-            {/* History Toggle Button */}
+  // History page view
+  if (showHistoryPage) {
+    return (
+      <RetroBackground showScanlines={crtOverlayEnabled}>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.historyPageHeader}>
             <TouchableOpacity
-              style={styles.historyButton}
-              onPress={() => setShowHistory(!showHistory)}
+              style={styles.backButton}
+              onPress={() => setShowHistoryPage(false)}
             >
-              <Text style={styles.historyButtonText}>
-                {showHistory ? 'Hide History' : 'View History'}
-              </Text>
+              <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-            
-            {/* Cancel Edit Button */}
-            {editingWorkout && (
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={cancelEditing}
-              >
-                <Text style={styles.cancelButtonText}>Cancel Edit</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={styles.historyPageTitle}>WORKOUT HISTORY</Text>
           </View>
-
-          {/* Workout History */}
-          {showHistory && (
-            <View style={styles.historySection}>
-              <Text style={styles.sectionTitle}>RECENT WORKOUTS</Text>
+          
+          <ScrollView style={styles.scrollView}>
+            <View style={styles.historyPageContent}>
               {isLoadingHistory ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : workoutHistory.length === 0 ? (
-                <Text style={styles.emptyHistoryText}>No workouts yet. Create your first one!</Text>
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.loadingText}>Loading history...</Text>
+                </View>
+              ) : !workoutHistory || workoutHistory.length === 0 ? (
+                <View style={styles.emptyHistoryContainer}>
+                  <Text style={styles.emptyHistoryText}>No workouts yet. Create your first one!</Text>
+                </View>
               ) : (
-                workoutHistory.map((workout) => (
+                (workoutHistory || []).map((workout) => (
                   <TouchableOpacity
                     key={workout.id}
                     style={styles.historyItem}
-                    onPress={() => loadWorkoutForEditing(workout)}
+                    onPress={() => {
+                      loadWorkoutForEditing(workout);
+                      setShowHistoryPage(false);
+                    }}
                   >
                     <View style={styles.historyItemHeader}>
-                      <Text style={styles.historyItemTitle}>{workout.title}</Text>
+                      <Text style={styles.historyItemTitle}>{workout.title || 'Untitled Workout'}</Text>
                       <Text style={styles.historyItemDate}>
-                        {workout.date.toDate().toLocaleDateString()}
+{(() => {
+                          try {
+                            if (workout.date && typeof workout.date.toDate === 'function') {
+                              const dateStr = workout.date.toDate().toLocaleDateString();
+                              return dateStr || 'Unknown date';
+                            } else if (typeof workout.date === 'string') {
+                              const dateStr = new Date(workout.date).toLocaleDateString();
+                              return dateStr || 'Unknown date';
+                            } else {
+                              return 'Unknown date';
+                            }
+                          } catch (error) {
+                            return 'Invalid date';
+                          }
+                        })()}
                       </Text>
                     </View>
                     <View style={styles.historyItemStats}>
                       <Text style={styles.historyItemStat}>
-                        {workout.exercises.length} exercises
+                        {(workout.exercises || []).length} exercises
                       </Text>
                       {workout.totalXP && (
                         <Text style={styles.historyItemStat}>
@@ -375,10 +487,63 @@ export default function LogScreen() {
                 ))
               )}
             </View>
-          )}
+          </ScrollView>
+        </SafeAreaView>
+      </RetroBackground>
+    );
+  }
 
-          {/* Workout Details Form */}
-          <View style={styles.formSection}>
+  return (
+    <RetroBackground showScanlines={crtOverlayEnabled}>
+      <SafeAreaView style={styles.container}>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={workoutCompletedToday ? styles.scrollViewContentCentered : undefined}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>
+              {editingWorkout ? '\u270F\uFE0F EDIT WORKOUT' : '\u26A1 LOG WORKOUT'}
+            </Text>
+            
+            
+            {/* Cancel Edit Button */}
+            {editingWorkout && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={cancelEditing}
+              >
+                <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+
+          {/* Completion State */}
+          {workoutCompletedToday ? (
+            <View style={styles.completionSection}>
+              <Text style={styles.completionTitle}>✅ WORKOUT COMPLETE!</Text>
+              <Text style={styles.completionMessage}>Great job! You've logged a workout for today.</Text>
+              
+              <View style={styles.completionButtons}>
+                <NeonButton
+                  title="View History"
+                  onPress={() => setShowHistoryPage(true)}
+                  variant="outline"
+                  size="medium"
+                  style={styles.completionButton}
+                />
+                <NeonButton
+                  title="Add Another Workout"
+                  onPress={() => setWorkoutCompletedToday(false)}
+                  size="medium"
+                  style={styles.completionButton}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              {/* Workout Details Form */}
+              <View style={styles.formSection}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Title</Text>
               <TextInput
@@ -470,6 +635,20 @@ export default function LogScreen() {
               style={styles.saveButton}
             />
           </View>
+
+              {/* Daily Quest Alternative */}
+              <View style={styles.dailyQuestSection}>
+            <Text style={styles.orText}>OR</Text>
+            <NeonButton
+              title="🎯 Daily Quest: I moved today"
+              onPress={handleDailyQuest}
+              variant="outline"
+              size="medium"
+              style={styles.dailyQuestButton}
+            />
+          </View>
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
     </RetroBackground>
@@ -654,6 +833,10 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollViewContentCentered: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   header: {
     paddingHorizontal: layout.screenPaddingHorizontal,
     paddingTop: spacing[4],
@@ -664,20 +847,6 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.text,
     marginBottom: spacing[2],
-  },
-  historyButton: {
-    backgroundColor: colors.panel,
-    borderColor: colors.accentAlt,
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2],
-    marginBottom: spacing[2],
-  },
-  historyButtonText: {
-    ...typography.labelMedium,
-    color: colors.accentAlt,
-    textAlign: 'center',
   },
   cancelButton: {
     backgroundColor: colors.panel,
@@ -892,9 +1061,87 @@ const styles = StyleSheet.create({
   },
   saveSection: {
     paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingBottom: spacing[4],
+  },
+  dailyQuestSection: {
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingTop: spacing[4],
     paddingBottom: spacing[8],
+    alignItems: 'center',
+  },
+  orText: {
+    ...typography.labelLarge,
+    color: colors.textDim,
+    marginBottom: spacing[3],
+    textAlign: 'center',
+  },
+  dailyQuestButton: {
+    width: '100%',
   },
   saveButton: {
     width: '100%',
+  },
+  completionSection: {
+    flex: 1,
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingVertical: spacing[8],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completionTitle: {
+    ...typography.h2,
+    color: colors.accent,
+    marginBottom: spacing[4],
+    textAlign: 'center',
+  },
+  completionMessage: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing[8],
+    textAlign: 'center',
+  },
+  completionButtons: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    width: '100%',
+    gap: spacing[4],
+  },
+  completionButton: {
+    width: '80%',
+    maxWidth: 300,
+  },
+  historyPageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingTop: spacing[4],
+    paddingBottom: spacing[6],
+  },
+  backButton: {
+    backgroundColor: colors.panel,
+    borderColor: colors.accentAlt,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    marginRight: spacing[4],
+  },
+  backButtonText: {
+    ...typography.labelMedium,
+    color: colors.accentAlt,
+  },
+  historyPageTitle: {
+    ...typography.h2,
+    color: colors.text,
+    flex: 1,
+  },
+  historyPageContent: {
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingBottom: spacing[8],
+  },
+  emptyHistoryContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing[8],
   },
 });

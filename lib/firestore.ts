@@ -22,9 +22,12 @@ import {
   SkillName, 
   SKILLS,
   WorkoutSession,
-  WorkoutTemplate 
+  WorkoutTemplate,
+  WorkoutDoc 
 } from '../types/domain';
 import { calculateLevel } from '../utils/levels';
+import { localDateKey } from '../utils/dates';
+import { shouldIncrementStreak } from '../utils/streak';
 
 // User operations
 export const createUser = async (uid: string, email: string, displayName: string) => {
@@ -356,4 +359,61 @@ export const markTemplateAsUsed = async (uid: string, templateId: string) => {
   await updateDoc(doc(firestore, 'users', uid, 'templates', templateId), {
     lastUsed: serverTimestamp(),
   });
+};
+
+// Helper to get user document reference
+const userRef = (uid: string) => doc(firestore, 'users', uid);
+
+// Helper to get workouts collection reference
+const workoutsCol = (uid: string) => collection(firestore, 'users', uid, 'workouts');
+
+// Increment streak if needed based on current date
+export const incrementStreakIfNeeded = async (uid: string): Promise<number> => {
+  const uRef = userRef(uid);
+  const uSnap = await getDoc(uRef);
+  const now = new Date();
+
+  if (!uSnap.exists()) return 0;
+  
+  const userData = uSnap.data();
+  const user = {
+    ...userData,
+    lastStreakDate: userData.lastStreakDate as Timestamp | null
+  } as User;
+
+  if (shouldIncrementStreak(user.lastStreakDate, now)) {
+    const nextStreak = (user.streakCount ?? 0) + 1;
+    await updateDoc(uRef, {
+      streakCount: nextStreak,
+      lastStreakDate: serverTimestamp(),
+    });
+    return nextStreak;
+  }
+  
+  return user.streakCount ?? 0;
+};
+
+// Log a daily quest workout and increment streak
+export const logDailyQuest = async (uid: string) => {
+  // 1) Write minimal workout document (compatible with existing WorkoutSession format)
+  const docData = {
+    uid,
+    title: 'Daily Quest',
+    type: 'quest',
+    date: serverTimestamp(), // Use Timestamp to match WorkoutSession format
+    dateKey: localDateKey(), // Store string date key for indexing if needed
+    durationMin: null,
+    notes: 'I moved today! 💪',
+    exercises: [], // Empty exercises array to match WorkoutSession
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  
+  await addDoc(workoutsCol(uid), docData);
+
+  // 2) Increment streak if needed
+  const newStreak = await incrementStreakIfNeeded(uid);
+
+  // 3) Return streak for UI feedback
+  return { streakCount: newStreak };
 };

@@ -134,8 +134,7 @@ export default function HomeScreen() {
 
   const handleLogPR = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // For now, just navigate to skill tree to select a skill
-    router.push('/(tabs)/skill-tree');
+    router.push('/(tabs)/log');
   };
 
   const handleLevelUpDismiss = () => {
@@ -207,7 +206,7 @@ export default function HomeScreen() {
         {/* Centered Log PR Button */}
         <View style={styles.actionSection}>
           <NeonButton
-            title="LOG PR"
+            title="LOG WORKOUT"
             onPress={handleLogPR}
             size="large"
             style={styles.logPRButton}
