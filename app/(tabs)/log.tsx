@@ -77,7 +77,7 @@ export default function LogScreen() {
         newExercise.bodyweightSets = [{ reps: 0 }];
         break;
       case 'endurance':
-        newExercise.enduranceData = { timeSec: 0 };
+        newExercise.enduranceData = { timeSec: 0, timeInput: '' };
         break;
     }
 
@@ -137,27 +137,28 @@ export default function LogScreen() {
   };
 
   const parseTimeInput = (timeStr: string): number => {
-    // Handle mm:ss format
+    // Handle mm:ss format (like "25:30")
     if (timeStr.includes(':')) {
-      const [minutes, seconds] = timeStr.split(':').map(Number);
-      return (minutes || 0) * 60 + (seconds || 0);
+      const parts = timeStr.split(':');
+      const minutes = parseInt(parts[0]) || 0;
+      const seconds = parseInt(parts[1]) || 0;
+      return minutes * 60 + seconds;
     }
-    // Handle seconds only
-    return parseInt(timeStr) || 0;
-  };
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    // Handle just minutes (like "25.5" becomes 25:30)
+    const totalMinutes = parseFloat(timeStr) || 0;
+    return Math.round(totalMinutes * 60);
   };
 
   const updateEnduranceTime = (exerciseId: string, timeStr: string) => {
-    const timeSec = parseTimeInput(timeStr);
+    // Store the raw input string instead of converting back and forth
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (!exercise) return;
+    
     updateExercise(exerciseId, {
       enduranceData: {
-        ...exercises.find(ex => ex.id === exerciseId)?.enduranceData,
-        timeSec,
+        ...exercise.enduranceData,
+        timeSec: parseTimeInput(timeStr),
+        timeInput: timeStr, // Keep the raw input for display
       }
     });
   };
@@ -371,11 +372,6 @@ const ExerciseBlockComponent: React.FC<ExerciseBlockProps> = ({
   onUpdateSet,
   onUpdateEnduranceTime,
 }) => {
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   return (
     <View style={styles.exerciseBlock}>
@@ -504,12 +500,12 @@ const ExerciseBlockComponent: React.FC<ExerciseBlockProps> = ({
               />
             </View>
             <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Time (mm:ss)</Text>
+              <Text style={styles.label}>Time</Text>
               <TextInput
                 style={styles.textInput}
-                value={formatTime(exercise.enduranceData.timeSec)}
+                value={exercise.enduranceData.timeInput || ''}
                 onChangeText={onUpdateEnduranceTime}
-                placeholder="25:30"
+                placeholder="25:30 or 25.5"
                 placeholderTextColor={colors.textDim}
               />
             </View>

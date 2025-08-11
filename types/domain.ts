@@ -112,6 +112,7 @@ export interface BodyweightSet {
 export interface EnduranceData {
   distanceKm?: number;
   timeSec: number; // Always store time in seconds
+  timeInput?: string; // Raw user input for display (e.g., "25:30" or "25.5")
 }
 
 export interface ExerciseBlock {
