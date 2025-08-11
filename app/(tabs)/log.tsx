@@ -28,7 +28,7 @@ import {
 } from '../../types/domain';
 import { router } from 'expo-router';
 import { Timestamp } from 'firebase/firestore';
-import { saveWorkoutSession } from '../../lib/firestore';
+import { saveWorkoutSession, getWorkoutSessions, updateWorkoutSession } from '../../lib/firestore';
 import { detectPRsAndApply, calculateWorkoutXP } from '../../utils/pr';
 
 export default function LogScreen() {
@@ -41,6 +41,10 @@ export default function LogScreen() {
   });
   const [exercises, setExercises] = useState<ExerciseBlock[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [workoutHistory, setWorkoutHistory] = useState<WorkoutSession[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [editingWorkout, setEditingWorkout] = useState<WorkoutSession | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated && !isLoading) {
@@ -59,7 +63,54 @@ export default function LogScreen() {
       ...prev,
       title: `Workout - ${dateString}`,
     }));
-  }, []);
+    
+    // Load workout history when user is authenticated
+    if (user) {
+      loadWorkoutHistory();
+    }
+  }, [user]);
+
+  const loadWorkoutHistory = async () => {
+    if (!user) return;
+    
+    setIsLoadingHistory(true);
+    try {
+      const history = await getWorkoutSessions(user.uid, 20); // Get last 20 workouts
+      setWorkoutHistory(history);
+    } catch (error) {
+      console.error('Error loading workout history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const loadWorkoutForEditing = (workout: WorkoutSession) => {
+    setEditingWorkout(workout);
+    setWorkoutForm({
+      title: workout.title,
+      date: workout.date.toDate(),
+      notes: workout.notes || '',
+      durationMin: workout.durationMin?.toString() || '',
+    });
+    setExercises(workout.exercises);
+    setShowHistory(false);
+  };
+
+  const cancelEditing = () => {
+    setEditingWorkout(null);
+    const today = new Date();
+    const dateString = today.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+    setWorkoutForm({
+      title: `Workout - ${dateString}`,
+      date: new Date(),
+      notes: '',
+      durationMin: '',
+    });
+    setExercises([]);
+  };
 
   const addExercise = (type: ExerciseType) => {
     const newExercise: ExerciseBlock = {
@@ -178,13 +229,17 @@ export default function LogScreen() {
     try {
       const namedExercises = exercises.filter(ex => ex.name.trim());
       
-      // Detect and apply PRs
-      const prResults = await detectPRsAndApply(user.uid, namedExercises);
+      // Only detect PRs for new workouts, not edits
+      let prResults: PRResult[] = [];
+      let xpBreakdown = calculateWorkoutXP(namedExercises);
       
-      // Calculate XP
-      const xpBreakdown = calculateWorkoutXP(namedExercises, prResults);
+      if (!editingWorkout) {
+        // Detect and apply PRs for new workouts
+        prResults = await detectPRsAndApply(user.uid, namedExercises);
+        xpBreakdown = calculateWorkoutXP(namedExercises, prResults);
+      }
       
-      const workout: Omit<WorkoutSession, 'id'> = {
+      const workoutData = {
         title: workoutForm.title,
         date: Timestamp.fromDate(workoutForm.date),
         notes: workoutForm.notes,
@@ -195,46 +250,49 @@ export default function LogScreen() {
         levelsGained: prResults.reduce((total, pr) => total + (pr.levelAfter - pr.levelBefore), 0),
       };
 
-      // Save workout to Firebase
-      await saveWorkoutSession(user.uid, workout);
+      if (editingWorkout) {
+        // Update existing workout
+        await updateWorkoutSession(user.uid, editingWorkout.id, workoutData);
+        Alert.alert('✅ Updated!', 'Workout updated successfully!', [
+          { text: 'OK', onPress: resetForm }
+        ]);
+      } else {
+        // Save new workout
+        await saveWorkoutSession(user.uid, workoutData);
+        
+        // Show success message with stats
+        const message = `Workout saved!\n\nXP Earned: ${xpBreakdown.totalXP}\nPRs: ${prResults.length}\nLevels Gained: ${workoutData.levelsGained || 0}`;
+        
+        Alert.alert('🎉 Success!', message, [
+          { text: 'Awesome!', onPress: resetForm }
+        ]);
+      }
+
+      // Reload history to show updated/new workout
+      loadWorkoutHistory();
       
-      // Show success message with stats
-      const message = `Workout saved!\n\nXP Earned: ${xpBreakdown.totalXP}\nPRs: ${prResults.length}\nLevels Gained: ${workout.levelsGained || 0}`;
-      
-      Alert.alert(
-        '🎉 Success!',
-        message,
-        [
-          {
-            text: 'Awesome!',
-            onPress: () => {
-              // Reset form
-              setExercises([]);
-              const today = new Date();
-              const dateString = today.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric' 
-              });
-              setWorkoutForm({
-                title: `Workout - ${dateString}`,
-                date: new Date(),
-                notes: '',
-                durationMin: '',
-              });
-              
-              // Reload user data to reflect new levels
-              // TODO: Add this to store if needed
-              // loadUserData();
-            }
-          }
-        ]
-      );
     } catch (error) {
       console.error('Error saving workout:', error);
       Alert.alert('Error', 'Failed to save workout. Please try again.');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const resetForm = () => {
+    setEditingWorkout(null);
+    setExercises([]);
+    const today = new Date();
+    const dateString = today.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+    setWorkoutForm({
+      title: `Workout - ${dateString}`,
+      date: new Date(),
+      notes: '',
+      durationMin: '',
+    });
   };
 
   if (!isAuthenticated || isLoading) {
@@ -252,8 +310,72 @@ export default function LogScreen() {
       <SafeAreaView style={styles.container}>
         <ScrollView style={styles.scrollView}>
           <View style={styles.header}>
-            <Text style={styles.title}>⚡ LOG WORKOUT</Text>
+            <Text style={styles.title}>
+              {editingWorkout ? '✏️ EDIT WORKOUT' : '⚡ LOG WORKOUT'}
+            </Text>
+            
+            {/* History Toggle Button */}
+            <TouchableOpacity
+              style={styles.historyButton}
+              onPress={() => setShowHistory(!showHistory)}
+            >
+              <Text style={styles.historyButtonText}>
+                {showHistory ? 'Hide History' : 'View History'}
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Cancel Edit Button */}
+            {editingWorkout && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={cancelEditing}
+              >
+                <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          {/* Workout History */}
+          {showHistory && (
+            <View style={styles.historySection}>
+              <Text style={styles.sectionTitle}>RECENT WORKOUTS</Text>
+              {isLoadingHistory ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : workoutHistory.length === 0 ? (
+                <Text style={styles.emptyHistoryText}>No workouts yet. Create your first one!</Text>
+              ) : (
+                workoutHistory.map((workout) => (
+                  <TouchableOpacity
+                    key={workout.id}
+                    style={styles.historyItem}
+                    onPress={() => loadWorkoutForEditing(workout)}
+                  >
+                    <View style={styles.historyItemHeader}>
+                      <Text style={styles.historyItemTitle}>{workout.title}</Text>
+                      <Text style={styles.historyItemDate}>
+                        {workout.date.toDate().toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <View style={styles.historyItemStats}>
+                      <Text style={styles.historyItemStat}>
+                        {workout.exercises.length} exercises
+                      </Text>
+                      {workout.totalXP && (
+                        <Text style={styles.historyItemStat}>
+                          {workout.totalXP} XP
+                        </Text>
+                      )}
+                      {workout.prsDetected && workout.prsDetected > 0 && (
+                        <Text style={styles.historyItemPR}>
+                          {workout.prsDetected} PR{workout.prsDetected > 1 ? 's' : ''}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          )}
 
           {/* Workout Details Form */}
           <View style={styles.formSection}>
@@ -541,6 +663,82 @@ const styles = StyleSheet.create({
   title: {
     ...typography.h2,
     color: colors.text,
+    marginBottom: spacing[2],
+  },
+  historyButton: {
+    backgroundColor: colors.panel,
+    borderColor: colors.accentAlt,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    marginBottom: spacing[2],
+  },
+  historyButtonText: {
+    ...typography.labelMedium,
+    color: colors.accentAlt,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    backgroundColor: colors.panel,
+    borderColor: colors.error,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  cancelButtonText: {
+    ...typography.labelMedium,
+    color: colors.error,
+    textAlign: 'center',
+  },
+  historySection: {
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    marginBottom: spacing[6],
+  },
+  emptyHistoryText: {
+    ...typography.body,
+    color: colors.textDim,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: spacing[4],
+  },
+  historyItem: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    marginBottom: spacing[3],
+    borderColor: colors.stroke,
+    borderWidth: 1,
+  },
+  historyItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing[2],
+  },
+  historyItemTitle: {
+    ...typography.labelLarge,
+    color: colors.text,
+    flex: 1,
+  },
+  historyItemDate: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  historyItemStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  historyItemStat: {
+    ...typography.caption,
+    color: colors.textDim,
+    marginRight: spacing[3],
+  },
+  historyItemPR: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: 'bold',
   },
   formSection: {
     paddingHorizontal: layout.screenPaddingHorizontal,
