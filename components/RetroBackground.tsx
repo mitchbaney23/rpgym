@@ -20,12 +20,33 @@ export const RetroBackground: React.FC<RetroBackgroundProps> = ({
 }) => {
   return (
     <View style={[styles.container, style]}>
-      {/* Dithered gradient background */}
+      {/* Synthwave dithered gradient background */}
       <LinearGradient
-        colors={[colors.bg, colors.surface]}
+        colors={[
+          colors.bg,           // Dark space at top
+          '#1a0a2e',          // Deep purple
+          '#16213e',          // Navy blue  
+          colors.surface,      // Surface color
+          colors.panel,        // Panel color
+          colors.bg,          // Back to dark
+        ]}
+        locations={[0, 0.15, 0.35, 0.6, 0.85, 1]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
+      />
+      
+      {/* Subtle vignette overlay for depth */}
+      <LinearGradient
+        colors={[
+          'transparent',
+          'rgba(11, 15, 26, 0.3)',
+          'transparent',
+        ]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        locations={[0, 0.5, 1]}
       />
       
       {/* Grid overlay */}
@@ -53,7 +74,7 @@ const GridOverlay: React.FC = () => {
     <Svg
       height={height}
       width={width}
-      style={[StyleSheet.absoluteFill, { zIndex: 0, opacity: 0.1 }]}
+      style={[StyleSheet.absoluteFill, { zIndex: 0, opacity: 0.06 }]}
     >
       <Defs>
         <Pattern

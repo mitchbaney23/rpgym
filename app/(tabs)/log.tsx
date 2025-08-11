@@ -32,7 +32,7 @@ import { saveWorkoutSession, getWorkoutSessions, updateWorkoutSession } from '..
 import { detectPRsAndApply, calculateWorkoutXP } from '../../utils/pr';
 
 export default function LogScreen() {
-  const { user, isAuthenticated, isLoading } = useAppStore();
+  const { user, isAuthenticated, isLoading, crtOverlayEnabled } = useAppStore();
   const [workoutForm, setWorkoutForm] = useState<WorkoutForm>({
     title: '',
     date: new Date(),
@@ -297,7 +297,7 @@ export default function LogScreen() {
 
   if (!isAuthenticated || isLoading) {
     return (
-      <RetroBackground>
+      <RetroBackground showScanlines={crtOverlayEnabled}>
         <SafeAreaView style={styles.loadingContainer}>
           <Text style={styles.loadingText}>LOADING...</Text>
         </SafeAreaView>
@@ -306,7 +306,7 @@ export default function LogScreen() {
   }
 
   return (
-    <RetroBackground>
+    <RetroBackground showScanlines={crtOverlayEnabled}>
       <SafeAreaView style={styles.container}>
         <ScrollView style={styles.scrollView}>
           <View style={styles.header}>

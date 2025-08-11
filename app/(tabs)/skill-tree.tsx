@@ -11,6 +11,7 @@ import {
 import { router } from 'expo-router';
 import { useAppStore } from '../../lib/store';
 import { ProgressRing } from '../../components/ProgressRing';
+import { RetroBackground } from '../../components/RetroBackground';
 import { colors, spacing, radii, layout, skillColors } from '../../theme/tokens';
 import { typography } from '../../theme/typography';
 import { SKILL_DISPLAY_NAMES, SkillName } from '../../types/domain';
@@ -23,6 +24,7 @@ export default function SkillTreeScreen() {
     skills,
     isLoading,
     loadUserData,
+    crtOverlayEnabled,
   } = useAppStore();
 
   const handleRefresh = async () => {
@@ -43,13 +45,14 @@ export default function SkillTreeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
-        }
-      >
+    <RetroBackground showScanlines={crtOverlayEnabled}>
+      <SafeAreaView style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
+          }
+        >
         <View style={styles.header}>
           <Text style={styles.title}>Skill Tree</Text>
           <Text style={styles.subtitle}>
@@ -121,6 +124,7 @@ export default function SkillTreeScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  </RetroBackground>
   );
 }
 

@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { User, Skill, Badge, LevelUpEvent } from '../types/domain';
 import { onAuthStateChange } from './auth';
 import { getUser, getSkills, getBadges } from './firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 interface AppStore {
   // Auth state
@@ -16,6 +18,7 @@ interface AppStore {
   // UI state
   levelUpEvent: LevelUpEvent | null;
   error: string | null;
+  crtOverlayEnabled: boolean;
   
   // Actions
   setUser: (user: User | null) => void;
@@ -24,7 +27,9 @@ interface AppStore {
   setLevelUpEvent: (event: LevelUpEvent | null) => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
+  setCrtOverlayEnabled: (enabled: boolean) => void;
   loadUserData: () => Promise<void>;
+  loadAppSettings: () => Promise<void>;
   clearStore: () => void;
 }
 
@@ -37,6 +42,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   badges: [],
   levelUpEvent: null,
   error: null,
+  crtOverlayEnabled: false,
   
   // Actions
   setUser: (user) => set({ user, isAuthenticated: !!user }),
@@ -45,6 +51,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setLevelUpEvent: (levelUpEvent) => set({ levelUpEvent }),
   setError: (error) => set({ error }),
   setLoading: (isLoading) => set({ isLoading }),
+  setCrtOverlayEnabled: async (enabled) => {
+    set({ crtOverlayEnabled: enabled });
+    try {
+      await AsyncStorage.setItem('crt_overlay_enabled', JSON.stringify(enabled));
+    } catch (error) {
+      console.error('Failed to save CRT overlay preference:', error);
+    }
+  },
   
   loadUserData: async () => {
     const { user } = get();
@@ -71,6 +85,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ isLoading: false });
     }
   },
+
+  loadAppSettings: async () => {
+    try {
+      const stored = await AsyncStorage.getItem('crt_overlay_enabled');
+      if (stored !== null) {
+        set({ crtOverlayEnabled: JSON.parse(stored) });
+      } else {
+        // Default based on platform: ON for web/tablets, OFF for mobile
+        const defaultValue = Platform.OS === 'web' || Platform.isPad;
+        set({ crtOverlayEnabled: defaultValue });
+        await AsyncStorage.setItem('crt_overlay_enabled', JSON.stringify(defaultValue));
+      }
+    } catch (error) {
+      console.error('Failed to load app settings:', error);
+    }
+  },
   
   clearStore: () => set({
     user: null,
@@ -88,6 +118,9 @@ let authUnsubscribe: (() => void) | null = null;
 
 export const initializeAuth = () => {
   if (authUnsubscribe) return; // Already initialized
+  
+  // Load app settings on initialization
+  useAppStore.getState().loadAppSettings();
   
   authUnsubscribe = onAuthStateChange(async (firebaseUser) => {
     const { setUser, loadUserData, clearStore } = useAppStore.getState();

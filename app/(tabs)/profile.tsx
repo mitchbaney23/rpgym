@@ -8,12 +8,14 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Switch,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAppStore } from '../../lib/store';
 import { logOut } from '../../lib/auth';
 import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
+import { NeonButton } from '../../components/NeonButton';
+import { RetroBackground } from '../../components/RetroBackground';
 import { colors, spacing, radii, layout } from '../../theme/tokens';
 import { typography } from '../../theme/typography';
 import { MILESTONE_LEVELS, SKILLS, SKILL_DISPLAY_NAMES } from '../../types/domain';
@@ -27,7 +29,14 @@ export default function ProfileScreen() {
     isLoading,
     loadUserData,
     clearStore,
+    crtOverlayEnabled,
+    setCrtOverlayEnabled,
   } = useAppStore();
+
+  const toggleCrtOverlay = async (value: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCrtOverlayEnabled(value);
+  };
 
   const handleRefresh = async () => {
     await loadUserData();
@@ -115,13 +124,14 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
-        }
-      >
+    <RetroBackground showScanlines={crtOverlayEnabled}>
+      <SafeAreaView style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
+          }
+        >
         <View style={styles.header}>
           <Text style={styles.displayName}>{user.displayName}</Text>
           <Text style={styles.email}>{user.email}</Text>
@@ -173,23 +183,48 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Settings Section */}
+        <View style={styles.settingsSection}>
+          <Text style={styles.sectionTitle}>Display Settings</Text>
+          
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingTitle}>CRT Scanlines</Text>
+              <Text style={styles.settingDescription}>
+                Add retro CRT monitor effect overlay
+              </Text>
+            </View>
+            <Switch
+              value={crtOverlayEnabled}
+              onValueChange={toggleCrtOverlay}
+              trackColor={{
+                false: colors.panel,
+                true: colors.accentAlt,
+              }}
+              thumbColor={crtOverlayEnabled ? colors.text : colors.textDim}
+              style={styles.switch}
+            />
+          </View>
+        </View>
+
         <View style={styles.actionSection}>
-          <Button
+          <NeonButton
             title="Share Achievement Card"
             onPress={handleShareCard}
             variant="secondary"
             style={styles.shareButton}
           />
           
-          <Button
+          <NeonButton
             title="Sign Out"
             onPress={handleLogout}
             variant="outline"
             style={styles.logoutButton}
           />
         </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </RetroBackground>
   );
 }
 
@@ -300,6 +335,38 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  settingsSection: {
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    marginBottom: spacing[8],
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[4],
+    backgroundColor: colors.panel,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    marginTop: spacing[4],
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: spacing[4],
+  },
+  settingTitle: {
+    ...typography.labelLarge,
+    color: colors.text,
+    marginBottom: spacing[1],
+  },
+  settingDescription: {
+    ...typography.bodySmall,
+    color: colors.textDim,
+  },
+  switch: {
+    transform: [{ scale: 0.9 }],
   },
   actionSection: {
     paddingHorizontal: layout.screenPaddingHorizontal,

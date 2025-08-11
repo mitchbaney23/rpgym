@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useAppStore } from '../../lib/store';
 import { fetchLeaderboard } from '../../utils/leaderboard-example';
+import { RetroBackground } from '../../components/RetroBackground';
 import { colors, spacing, radii, layout } from '../../theme/tokens';
 import { typography } from '../../theme/typography';
 import type { LeaderboardEntry } from '../../utils/leaderboard';
@@ -18,7 +19,7 @@ import { UserProfileModal } from '../../components/UserProfileModal';
 import { formatLevelDisplay } from '../../utils/leaderboard';
 
 export default function LeaderboardScreen() {
-  const { user, isAuthenticated } = useAppStore();
+  const { user, isAuthenticated, crtOverlayEnabled } = useAppStore();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<LeaderboardEntry | null>(null);
@@ -71,13 +72,14 @@ export default function LeaderboardScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={loadLeaderboard} />
-        }
-      >
+    <RetroBackground showScanlines={crtOverlayEnabled}>
+      <SafeAreaView style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={loadLeaderboard} />
+          }
+        >
         <View style={styles.header}>
           <Text style={styles.title}>🏆 Leaderboard</Text>
           {user && (
@@ -157,6 +159,7 @@ export default function LeaderboardScreen() {
         onClose={handleModalClose}
       />
     </SafeAreaView>
+  </RetroBackground>
   );
 }
 

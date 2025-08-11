@@ -28,7 +28,7 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
   // Progress is based on level (0-99 maps to 0-100%)
   const progress = Math.min(level / 99, 1);
   
-  // Simple progress ring without dashes for now
+  // Calculate progress stroke offset (0-99 maps to full circumference)
   const strokeDashoffset = circumference * (1 - progress);
   
   // Animation for level up effect
@@ -36,8 +36,23 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
   const glowAnim = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
-    // Trigger subtle glow animation on level change
+    // Enhanced glow and overshoot animation on level change
     if (level > 0) {
+      // Scale overshoot
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.15,
+          duration: 150,
+          useNativeDriver: false,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: false,
+        }),
+      ]).start();
+      
+      // Glow pulse
       Animated.sequence([
         Animated.timing(glowAnim, {
           toValue: 1,
@@ -46,26 +61,35 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
         }),
         Animated.timing(glowAnim, {
           toValue: 0,
-          duration: 300,
+          duration: 400,
           useNativeDriver: false,
         }),
       ]).start();
     }
-  }, [level, glowAnim]);
+  }, [level, glowAnim, scaleAnim]);
 
   const ringGlow = glowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 12],
+    outputRange: [6, 18],
   });
 
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        { 
+          width: size, 
+          height: size,
+          transform: [{ scale: scaleAnim }]
+        }
+      ]}
+    >
       {/* Animated container for glow effect */}
       <Animated.View
         style={{
           ...StyleSheet.absoluteFillObject,
-          shadowColor: color,
-          shadowOpacity: 0.4,
+          shadowColor: colors.accentAlt,
+          shadowOpacity: 0.5,
           shadowRadius: ringGlow,
           shadowOffset: { width: 0, height: 0 },
         }}
@@ -73,8 +97,10 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
         <Svg width={size} height={size} style={styles.svg}>
           <Defs>
             <SvgLinearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <Stop offset="0%" stopColor={color} stopOpacity="1" />
-              <Stop offset="100%" stopColor={colors.accent} stopOpacity="0.8" />
+              <Stop offset="0%" stopColor={colors.accentAlt} stopOpacity="1" />
+              <Stop offset="40%" stopColor={colors.accent} stopOpacity="0.9" />
+              <Stop offset="80%" stopColor={colors.gold} stopOpacity="0.8" />
+              <Stop offset="100%" stopColor={colors.accentAlt} stopOpacity="1" />
             </SvgLinearGradient>
           </Defs>
           
@@ -132,11 +158,12 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
           },
         ]}
       >
-        <View style={[styles.sparkle, { backgroundColor: color }]} />
+        <View style={[styles.sparkle, { backgroundColor: colors.accentAlt }]} />
         <View style={[styles.sparkle, styles.sparkle2, { backgroundColor: colors.gold }]} />
-        <View style={[styles.sparkle, styles.sparkle3, { backgroundColor: color }]} />
+        <View style={[styles.sparkle, styles.sparkle3, { backgroundColor: colors.accent }]} />
+        <View style={[styles.sparkle, styles.sparkle4, { backgroundColor: colors.accentAlt }]} />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -177,5 +204,11 @@ const styles = StyleSheet.create({
     left: '20%',
     width: 2,
     height: 2,
+  },
+  sparkle4: {
+    top: '70%',
+    right: '15%',
+    width: 1.5,
+    height: 1.5,
   },
 });

@@ -25,6 +25,7 @@ export default function HomeScreen() {
     levelUpEvent,
     setLevelUpEvent,
     loadUserData,
+    crtOverlayEnabled,
   } = useAppStore();
 
   const styles = useThemedStyles((theme) => ({
@@ -153,7 +154,7 @@ export default function HomeScreen() {
 
   if (!user) {
     return (
-      <RetroBackground>
+      <RetroBackground showScanlines={crtOverlayEnabled}>
         <SafeAreaView style={styles.loadingContainer}>
           <Text style={styles.loadingText}>PLEASE SIGN IN TO CONTINUE</Text>
         </SafeAreaView>
@@ -162,7 +163,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <RetroBackground>
+    <RetroBackground showScanlines={crtOverlayEnabled}>
       <SafeAreaView style={styles.container}>
         <LevelUpBanner
           levelUpEvent={levelUpEvent}
