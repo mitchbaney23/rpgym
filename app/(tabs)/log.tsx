@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Modal,
 } from 'react-native';
 import { useAppStore } from '../../lib/store';
 import { colors, spacing, radii, layout } from '../../theme/tokens';
@@ -50,10 +51,11 @@ interface WorkoutSet {
   weight: number;
 }
 
-interface SimplifiedWorkoutForm {
-  date: Date;
-  selectedSkill: SkillName;
+interface WorkoutExercise {
+  id: string;
   exerciseName: string;
+  selectedSkill: SkillName;
+  inferredType: ExerciseType | null;
   
   // Contextual inputs
   reps: string;
@@ -71,6 +73,12 @@ interface SimplifiedWorkoutForm {
   tags: string;
 }
 
+interface SimplifiedWorkoutForm {
+  date: Date;
+  exercises: WorkoutExercise[];
+  workoutNotes: string;
+}
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
@@ -81,25 +89,17 @@ export default function LogScreen() {
   // Form state
   const [form, setForm] = useState<SimplifiedWorkoutForm>({
     date: new Date(),
-    selectedSkill: 'pushups',
-    exerciseName: '',
-    reps: '',
-    sets: [{ reps: 0, weight: 0 }],
-    weight: '',
-    distance: '',
-    timeMinutes: '',
-    timeSeconds: '',
-    distanceUnit: 'mi',
-    notes: '',
-    rpe: '',
-    equipment: '',
-    tags: '',
+    exercises: [],
+    workoutNotes: '',
   });
+  
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   
   // UI state
   const [recentExercises, setRecentExercises] = useState<RecentExercise[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [showCustomDialog, setShowCustomDialog] = useState(false);
   const [customExerciseName, setCustomExerciseName] = useState('');
   
@@ -143,37 +143,62 @@ export default function LogScreen() {
   // COMPUTED VALUES
   // =============================================================================
 
-  const workoutData: SimpleWorkoutData = {
-    exerciseName: form.exerciseName,
-    reps: form.reps ? parseInt(form.reps) : undefined,
-    weight: form.weight ? parseFloat(form.weight) : undefined,
-    distance: form.distance ? parseFloat(form.distance) : undefined,
-    timeSeconds: form.timeMinutes || form.timeSeconds 
-      ? (parseInt(form.timeMinutes) || 0) * 60 + (parseInt(form.timeSeconds) || 0)
-      : undefined,
-  };
-
-  const inferredType = inferExerciseType(workoutData);
-  const isValid = validateWorkoutData(workoutData) && form.exerciseName.trim().length > 0;
-  const estimatedXP = calculateEstimatedXP(workoutData);
+  const totalEstimatedXP = form.exercises.reduce((total, exercise) => {
+    const workoutData: SimpleWorkoutData = {
+      exerciseName: exercise.exerciseName,
+      reps: exercise.reps ? parseInt(exercise.reps) : undefined,
+      weight: exercise.weight ? parseFloat(exercise.weight) : undefined,
+      distance: exercise.distance ? parseFloat(exercise.distance) : undefined,
+      timeSeconds: exercise.timeMinutes || exercise.timeSeconds 
+        ? (parseInt(exercise.timeMinutes) || 0) * 60 + (parseInt(exercise.timeSeconds) || 0)
+        : undefined,
+    };
+    return total + calculateEstimatedXP(workoutData);
+  }, 0);
+  
+  const isValid = form.exercises.length > 0 && form.exercises.every(exercise => 
+    exercise.exerciseName.trim().length > 0
+  );
 
   // =============================================================================
   // HANDLERS
   // =============================================================================
 
-  const handleQuickAdd = (exercise: RecentExercise) => {
-    setForm(prev => ({
-      ...prev,
+  const handleExerciseSelect = (exercise: RecentExercise) => {
+    // Infer type from skill mapping
+    let inferredType: ExerciseType;
+    if (['pushups', 'pullups', 'squats', 'situps'].includes(exercise.skillId)) {
+      inferredType = 'bodyweight';
+    } else if (['deadlift', 'squat', 'bench', 'overhead'].includes(exercise.skillId)) {
+      inferredType = 'strength';
+    } else {
+      inferredType = 'endurance';
+    }
+    
+    const newExercise: WorkoutExercise = {
+      id: Date.now().toString(),
       exerciseName: exercise.name,
       selectedSkill: exercise.skillId,
-    }));
+      inferredType,
+      reps: '',
+      sets: [{ reps: 0, weight: 0 }],
+      weight: '',
+      distance: '',
+      timeMinutes: '',
+      timeSeconds: '',
+      distanceUnit: 'mi',
+      notes: '',
+      rpe: '',
+      equipment: '',
+      tags: '',
+    };
     
-    // Focus appropriate input based on skill type
-    setTimeout(() => {
-      if (firstInputRef.current) {
-        firstInputRef.current.focus();
-      }
-    }, 100);
+    setForm(prev => ({
+      ...prev,
+      exercises: [...prev.exercises, newExercise]
+    }));
+    setShowDropdown(false);
+    setEditingExerciseId(newExercise.id);
   };
 
   const handleCustomExercise = () => {
@@ -183,19 +208,51 @@ export default function LogScreen() {
   const handleCustomExerciseSubmit = () => {
     if (!customExerciseName.trim()) return;
     
+    const skillId = inferSkillFromExercise(customExerciseName.trim(), 'bodyweight');
+    
+    // Infer type from skill mapping or exercise name
+    let inferredType: ExerciseType = 'bodyweight'; // default
+    if (['deadlift', 'squat', 'bench', 'overhead'].includes(skillId)) {
+      inferredType = 'strength';
+    } else if (['5k', '10k', 'marathon', 'mile'].includes(skillId)) {
+      inferredType = 'endurance';
+    } else if (customExerciseName.toLowerCase().includes('run') || 
+               customExerciseName.toLowerCase().includes('bike') ||
+               customExerciseName.toLowerCase().includes('swim')) {
+      inferredType = 'endurance';
+    } else if (customExerciseName.toLowerCase().includes('press') ||
+               customExerciseName.toLowerCase().includes('curl') ||
+               customExerciseName.toLowerCase().includes('row')) {
+      inferredType = 'strength';
+    }
+    
+    const newExercise: WorkoutExercise = {
+      id: Date.now().toString(),
+      exerciseName: customExerciseName.trim(),
+      selectedSkill: skillId,
+      inferredType,
+      reps: '',
+      sets: [{ reps: 0, weight: 0 }],
+      weight: '',
+      distance: '',
+      timeMinutes: '',
+      timeSeconds: '',
+      distanceUnit: 'mi',
+      notes: '',
+      rpe: '',
+      equipment: '',
+      tags: '',
+    };
+    
     setForm(prev => ({
       ...prev,
-      exerciseName: customExerciseName.trim(),
+      exercises: [...prev.exercises, newExercise]
     }));
     
     setCustomExerciseName('');
     setShowCustomDialog(false);
-    
-    setTimeout(() => {
-      if (firstInputRef.current) {
-        firstInputRef.current.focus();
-      }
-    }, 100);
+    setShowDropdown(false);
+    setEditingExerciseId(newExercise.id);
   };
 
   const handleMovedToday = async () => {
@@ -215,21 +272,24 @@ export default function LogScreen() {
     }
   };
 
-  const addSet = () => {
-    setForm(prev => ({
-      ...prev,
-      sets: [...prev.sets, { reps: 0, weight: 0 }]
-    }));
+  const addSetToExercise = (exerciseId: string) => {
+    const exercise = form.exercises.find(ex => ex.id === exerciseId);
+    if (exercise) {
+      handleUpdateExercise(exerciseId, {
+        sets: [...exercise.sets, { reps: 0, weight: 0 }]
+      });
+    }
   };
 
-  const updateSet = (index: number, field: keyof WorkoutSet, value: string) => {
-    const numValue = parseFloat(value) || 0;
-    setForm(prev => ({
-      ...prev,
-      sets: prev.sets.map((set, i) => 
+  const updateExerciseSet = (exerciseId: string, index: number, field: keyof WorkoutSet, value: string) => {
+    const exercise = form.exercises.find(ex => ex.id === exerciseId);
+    if (exercise) {
+      const numValue = parseFloat(value) || 0;
+      const updatedSets = exercise.sets.map((set, i) => 
         i === index ? { ...set, [field]: numValue } : set
-      )
-    }));
+      );
+      handleUpdateExercise(exerciseId, { sets: updatedSets });
+    }
   };
 
   const handleSave = async () => {
@@ -239,45 +299,51 @@ export default function LogScreen() {
     Keyboard.dismiss();
     
     try {
-      // Convert form to exercise block format
-      const exerciseBlock = createExerciseBlock();
+      // Convert form exercises to exercise blocks
+      const exerciseBlocks = form.exercises.map(exercise => createExerciseBlock(exercise));
       
       // Detect PRs and apply them
-      const prResults = await detectPRsAndApply(user.uid, [exerciseBlock]);
+      const prResults = await detectPRsAndApply(user.uid, exerciseBlocks);
       
       // Allocate and apply workout XP
-      const skillXP = allocateWorkoutXP([exerciseBlock]);
+      const skillXP = allocateWorkoutXP(exerciseBlocks);
       await applyXPToSkills(user.uid, skillXP);
       
       // Recalculate overall level
       await calculateAndGetOverallLevel(user.uid);
       
       // Save workout session
+      const workoutTitle = form.exercises.length === 1 
+        ? `${form.exercises[0].exerciseName} - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+        : `${form.exercises.length} Exercises - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+        
       const workoutData = {
-        title: `${form.exerciseName} - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+        title: workoutTitle,
         date: Timestamp.fromDate(form.date),
-        notes: form.notes,
-        exercises: [exerciseBlock],
-        totalXP: estimatedXP,
+        notes: form.workoutNotes,
+        exercises: exerciseBlocks,
+        totalXP: totalEstimatedXP,
         prsDetected: prResults.length,
         levelsGained: prResults.reduce((total, pr) => total + (pr.levelAfter - pr.levelBefore), 0),
       };
       
       await saveWorkoutSession(user.uid, workoutData);
       
-      // Add to recent exercises
-      const skillId = inferSkillFromExercise(form.exerciseName, inferredType!);
-      await addRecentExercise({
-        name: form.exerciseName,
-        skillId,
-      });
+      // Add all exercises to recent exercises
+      for (const exercise of form.exercises) {
+        await addRecentExercise({
+          name: exercise.exerciseName,
+          skillId: exercise.selectedSkill,
+        });
+      }
       
-      // Show success and return
+      // Show success with option to log another workout
       const message = prResults.length > 0 
-        ? `Saved! +${estimatedXP} XP • ${prResults.length} PR${prResults.length > 1 ? 's' : ''}!`
-        : `Saved! +${estimatedXP} XP`;
+        ? `Saved! +${totalEstimatedXP} XP • ${prResults.length} PR${prResults.length > 1 ? 's' : ''}!`
+        : `Saved! +${totalEstimatedXP} XP`;
         
       Alert.alert('✅ Success!', message, [
+        { text: 'Log Another', onPress: handleLogAnother },
         { text: 'Done', onPress: () => router.back() }
       ]);
       
@@ -288,48 +354,90 @@ export default function LogScreen() {
       setIsSaving(false);
     }
   };
-
-  const createExerciseBlock = () => {
-    const exerciseId = Date.now().toString();
-    const skillId = inferSkillFromExercise(form.exerciseName, inferredType!);
+  
+  const handleLogAnother = () => {
+    // Reset form to default state but keep date
+    setForm({
+      date: new Date(),
+      exercises: [],
+      workoutNotes: '',
+    });
+    setEditingExerciseId(null);
+    setIsSaving(false);
+  };
+  
+  const handleRemoveExercise = (exerciseId: string) => {
+    setForm(prev => ({
+      ...prev,
+      exercises: prev.exercises.filter(ex => ex.id !== exerciseId)
+    }));
+    if (editingExerciseId === exerciseId) {
+      setEditingExerciseId(null);
+    }
+  };
+  
+  const handleUpdateExercise = (exerciseId: string, updates: Partial<WorkoutExercise>) => {
+    setForm(prev => ({
+      ...prev,
+      exercises: prev.exercises.map(ex => 
+        ex.id === exerciseId ? { ...ex, ...updates } : ex
+      )
+    }));
     
+    // Update inferred type if exercise name changed
+    if (updates.exerciseName) {
+      const exercise = form.exercises.find(ex => ex.id === exerciseId);
+      if (exercise) {
+        const workoutData: SimpleWorkoutData = { exerciseName: updates.exerciseName };
+        const inferredType = inferExerciseType(workoutData);
+        setForm(prev => ({
+          ...prev,
+          exercises: prev.exercises.map(ex => 
+            ex.id === exerciseId ? { ...ex, inferredType } : ex
+          )
+        }));
+      }
+    }
+  };
+
+  const createExerciseBlock = (exercise: WorkoutExercise) => {
     const baseExercise = {
-      id: exerciseId,
-      type: inferredType!,
-      name: form.exerciseName,
-      skillId,
+      id: exercise.id,
+      type: exercise.inferredType!,
+      name: exercise.exerciseName,
+      skillId: exercise.selectedSkill,
     };
 
-    switch (inferredType) {
+    switch (exercise.inferredType) {
       case 'bodyweight':
         return {
           ...baseExercise,
           bodyweightSets: [{ 
-            reps: parseInt(form.reps) || 0,
-            rpe: form.rpe ? parseInt(form.rpe) : undefined
+            reps: parseInt(exercise.reps) || 0,
+            rpe: exercise.rpe ? parseInt(exercise.rpe) : undefined
           }],
         };
         
       case 'strength':
         return {
           ...baseExercise,
-          strengthSets: form.sets.map(set => ({
+          strengthSets: exercise.sets.map(set => ({
             reps: set.reps,
             weight: set.weight,
-            rpe: form.rpe ? parseInt(form.rpe) : undefined
+            rpe: exercise.rpe ? parseInt(exercise.rpe) : undefined
           })),
         };
         
       case 'endurance':
-        const distance = parseFloat(form.distance) || 0;
-        const timeSeconds = (parseInt(form.timeMinutes) || 0) * 60 + (parseInt(form.timeSeconds) || 0);
+        const distance = parseFloat(exercise.distance) || 0;
+        const timeSeconds = (parseInt(exercise.timeMinutes) || 0) * 60 + (parseInt(exercise.timeSeconds) || 0);
         
         return {
           ...baseExercise,
           enduranceData: {
-            distanceKm: form.distanceUnit === 'km' ? distance : distance * 1.60934,
+            distanceKm: exercise.distanceUnit === 'km' ? distance : distance * 1.60934,
             timeSec: timeSeconds,
-            timeInput: `${form.timeMinutes}:${form.timeSeconds.padStart(2, '0')}`,
+            timeInput: `${exercise.timeMinutes}:${exercise.timeSeconds.padStart(2, '0')}`,
           },
         };
         
@@ -374,59 +482,68 @@ export default function LogScreen() {
               </View>
             </View>
 
-            {/* Quick-Add Chips */}
-            <QuickAddChips 
-              exercises={recentExercises}
-              onExerciseSelect={handleQuickAdd}
-              onCustomSelect={handleCustomExercise}
-              onMovedToday={handleMovedToday}
-            />
-
-            {/* Exercise Name Input */}
+            {/* Exercise Selection Dropdown */}
             <View style={styles.section}>
-              <Text style={styles.label}>Exercise</Text>
-              <TextInput
-                style={styles.exerciseInput}
-                value={form.exerciseName}
-                onChangeText={(text) => setForm(prev => ({ ...prev, exerciseName: text }))}
-                placeholder="Enter exercise name..."
-                placeholderTextColor={colors.textDim}
-                autoCapitalize="words"
-              />
+              <Text style={styles.label}>Select Exercise</Text>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => setShowDropdown(true)}
+              >
+                <Text style={[styles.dropdownButtonText, styles.dropdownPlaceholder]}>
+                  Choose an exercise...
+                </Text>
+                <Text style={styles.dropdownArrow}>▼</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Moved Today Button */}
+            <View style={styles.section}>
+              <TouchableOpacity style={styles.movedTodayButton} onPress={handleMovedToday}>
+                <Text style={styles.movedTodayButtonText}>🎯 I Moved Today (Quick Log)</Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Contextual Input Component */}
-            <ContextualInputs
-              form={form}
-              setForm={setForm}
-              inferredType={inferredType}
-              firstInputRef={firstInputRef}
-              onAddSet={addSet}
-              onUpdateSet={updateSet}
+            {/* Exercise List */}
+            <ExerciseList
+              exercises={form.exercises}
+              editingExerciseId={editingExerciseId}
+              onEditExercise={setEditingExerciseId}
+              onUpdateExercise={handleUpdateExercise}
+              onRemoveExercise={handleRemoveExercise}
             />
+            
+            {/* Workout Notes */}
+            {form.exercises.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.label}>Workout Notes (Optional)</Text>
+                <TextInput
+                  style={[styles.textInput, styles.notesInput]}
+                  value={form.workoutNotes}
+                  onChangeText={(text) => setForm(prev => ({ ...prev, workoutNotes: text }))}
+                  placeholder="How was the overall workout?"
+                  placeholderTextColor={colors.textDim}
+                  multiline
+                  numberOfLines={2}
+                />
+              </View>
+            )}
 
-            {/* Advanced Section */}
-            <AdvancedSection
-              form={form}
-              setForm={setForm}
-              showAdvanced={showAdvanced}
-              onToggle={() => setShowAdvanced(!showAdvanced)}
-            />
+}
           </ScrollView>
 
-          {/* Sticky Save Bar */}
+          {/* Always Visible Save Bar */}
           <View style={styles.saveBar}>
             <View style={styles.saveBarContent}>
               <View style={styles.xpPreview}>
                 {isValid && (
-                  <Text style={styles.xpText}>+{estimatedXP} XP</Text>
+                  <Text style={styles.xpText}>+{totalEstimatedXP} XP</Text>
                 )}
-                {inferredType && (
-                  <Text style={styles.typeText}>{inferredType.toUpperCase()}</Text>
+                {form.exercises.length > 0 && (
+                  <Text style={styles.typeText}>{form.exercises.length} EXERCISE{form.exercises.length > 1 ? 'S' : ''}</Text>
                 )}
               </View>
               <NeonButton
-                title={isSaving ? "SAVING..." : "SAVE WORKOUT"}
+                title={isSaving ? "SAVING..." : "SUBMIT WORKOUT"}
                 onPress={handleSave}
                 disabled={!isValid || isSaving}
                 style={styles.saveButton}
@@ -434,6 +551,49 @@ export default function LogScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+
+        {/* Exercise Dropdown Modal */}
+        <Modal
+          visible={showDropdown}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDropdown(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.dropdownModal}>
+              <Text style={styles.modalTitle}>Select Exercise</Text>
+              
+              {/* Recent Exercises */}
+              <ScrollView style={styles.exerciseList} showsVerticalScrollIndicator={false}>
+                {recentExercises.map((exercise) => (
+                  <TouchableOpacity
+                    key={exercise.name}
+                    style={styles.exerciseItem}
+                    onPress={() => handleExerciseSelect(exercise)}
+                  >
+                    <Text style={styles.exerciseItemText}>{exercise.name}</Text>
+                    <Text style={styles.exerciseItemSkill}>{exercise.skillId}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.customButton]} 
+                  onPress={handleCustomExercise}
+                >
+                  <Text style={styles.customButtonText}>+ Custom Exercise</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.modalButton} 
+                  onPress={() => setShowDropdown(false)}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Custom Exercise Dialog */}
         {showCustomDialog && (
@@ -456,135 +616,219 @@ export default function LogScreen() {
 // SUB-COMPONENTS
 // =============================================================================
 
-interface QuickAddChipsProps {
-  exercises: RecentExercise[];
-  onExerciseSelect: (exercise: RecentExercise) => void;
-  onCustomSelect: () => void;
-  onMovedToday: () => void;
+interface ExerciseListProps {
+  exercises: WorkoutExercise[];
+  editingExerciseId: string | null;
+  onEditExercise: (id: string | null) => void;
+  onUpdateExercise: (id: string, updates: Partial<WorkoutExercise>) => void;
+  onRemoveExercise: (id: string) => void;
 }
 
-const QuickAddChips: React.FC<QuickAddChipsProps> = ({
+const ExerciseList: React.FC<ExerciseListProps> = ({
   exercises,
-  onExerciseSelect,
-  onCustomSelect,
-  onMovedToday,
-}) => (
-  <View style={styles.chipsSection}>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-      {/* I Moved Today Chip */}
-      <TouchableOpacity style={[styles.chip, styles.movedTodayChip]} onPress={onMovedToday}>
-        <Text style={styles.movedTodayChipText}>🎯 I Moved Today</Text>
-      </TouchableOpacity>
-      
-      {/* Exercise Chips */}
-      {exercises.map((exercise) => (
-        <TouchableOpacity
-          key={exercise.name}
-          style={styles.chip}
-          onPress={() => onExerciseSelect(exercise)}
-        >
-          <Text style={styles.chipText}>{exercise.name}</Text>
-        </TouchableOpacity>
-      ))}
-      
-      {/* Custom Chip */}
-      <TouchableOpacity style={[styles.chip, styles.customChip]} onPress={onCustomSelect}>
-        <Text style={styles.customChipText}>+ Custom</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  </View>
-);
-
-interface ContextualInputsProps {
-  form: SimplifiedWorkoutForm;
-  setForm: React.Dispatch<React.SetStateAction<SimplifiedWorkoutForm>>;
-  inferredType: ExerciseType | null;
-  firstInputRef: React.RefObject<TextInput>;
-  onAddSet: () => void;
-  onUpdateSet: (index: number, field: keyof WorkoutSet, value: string) => void;
-}
-
-const ContextualInputs: React.FC<ContextualInputsProps> = ({
-  form,
-  setForm,
-  inferredType,
-  firstInputRef,
-  onAddSet,
-  onUpdateSet,
+  editingExerciseId,
+  onEditExercise,
+  onUpdateExercise,
+  onRemoveExercise,
 }) => {
-  if (!form.exerciseName.trim()) {
+  if (exercises.length === 0) {
     return (
       <View style={styles.section}>
-        <Text style={styles.placeholderText}>Select an exercise above to continue...</Text>
+        <Text style={styles.placeholderText}>Select exercises above to start building your workout...</Text>
       </View>
     );
   }
 
-  switch (inferredType) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.label}>Today's Workout ({exercises.length} exercise{exercises.length > 1 ? 's' : ''})</Text>
+      {exercises.map((exercise, index) => (
+        <ExerciseItem
+          key={exercise.id}
+          exercise={exercise}
+          index={index}
+          isEditing={editingExerciseId === exercise.id}
+          onEdit={() => onEditExercise(exercise.id)}
+          onUpdate={(updates) => onUpdateExercise(exercise.id, updates)}
+          onRemove={() => onRemoveExercise(exercise.id)}
+          onAddSet={() => {
+            const newSets = [...exercise.sets, { reps: 0, weight: 0 }];
+            onUpdateExercise(exercise.id, { sets: newSets });
+          }}
+          onUpdateSet={(setIndex, field, value) => {
+            const numValue = parseFloat(value) || 0;
+            const updatedSets = exercise.sets.map((set, i) => 
+              i === setIndex ? { ...set, [field]: numValue } : set
+            );
+            onUpdateExercise(exercise.id, { sets: updatedSets });
+          }}
+        />
+      ))}
+    </View>
+  );
+};
+
+interface ExerciseItemProps {
+  exercise: WorkoutExercise;
+  index: number;
+  isEditing: boolean;
+  onEdit: () => void;
+  onUpdate: (updates: Partial<WorkoutExercise>) => void;
+  onRemove: () => void;
+  onAddSet: () => void;
+  onUpdateSet: (index: number, field: keyof WorkoutSet, value: string) => void;
+}
+
+const ExerciseItem: React.FC<ExerciseItemProps> = ({
+  exercise,
+  index,
+  isEditing,
+  onEdit,
+  onUpdate,
+  onRemove,
+  onAddSet,
+  onUpdateSet,
+}) => {
+  const workoutData: SimpleWorkoutData = {
+    exerciseName: exercise.exerciseName,
+    reps: exercise.reps ? parseInt(exercise.reps) : undefined,
+    weight: exercise.weight ? parseFloat(exercise.weight) : undefined,
+    distance: exercise.distance ? parseFloat(exercise.distance) : undefined,
+    timeSeconds: exercise.timeMinutes || exercise.timeSeconds 
+      ? (parseInt(exercise.timeMinutes) || 0) * 60 + (parseInt(exercise.timeSeconds) || 0)
+      : undefined,
+  };
+  
+  const estimatedXP = calculateEstimatedXP(workoutData);
+  const isValidExercise = validateWorkoutData(workoutData);
+
+  return (
+    <View style={styles.exerciseCard}>
+      <View style={styles.exerciseHeader}>
+        <View style={styles.exerciseHeaderLeft}>
+          <Text style={styles.exerciseTitle}>{index + 1}. {exercise.exerciseName}</Text>
+          {exercise.inferredType && (
+            <Text style={styles.exerciseType}>{exercise.inferredType.toUpperCase()}</Text>
+          )}
+        </View>
+        <View style={styles.exerciseHeaderRight}>
+          <Text style={styles.exerciseXP}>+{estimatedXP} XP</Text>
+          <TouchableOpacity 
+            style={styles.editButton} 
+            onPress={onEdit}
+          >
+            <Text style={styles.editButtonText}>{isEditing ? '▼' : '▶'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.removeButton} 
+            onPress={onRemove}
+          >
+            <Text style={styles.removeButtonText}>×</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      {isEditing && (
+        <ExerciseInputs
+          exercise={exercise}
+          onUpdate={onUpdate}
+          onAddSet={onAddSet}
+          onUpdateSet={onUpdateSet}
+        />
+      )}
+      
+      {!isValidExercise && (
+        <Text style={styles.exerciseError}>⚠ Complete the exercise data above</Text>
+      )}
+    </View>
+  );
+};
+
+interface ExerciseInputsProps {
+  exercise: WorkoutExercise;
+  onUpdate: (updates: Partial<WorkoutExercise>) => void;
+  onAddSet: () => void;
+  onUpdateSet: (index: number, field: keyof WorkoutSet, value: string) => void;
+}
+
+const ExerciseInputs: React.FC<ExerciseInputsProps> = ({
+  exercise,
+  onUpdate,
+  onAddSet,
+  onUpdateSet,
+}) => {
+  switch (exercise.inferredType) {
     case 'bodyweight':
       return (
-        <View style={styles.section}>
-          <Text style={styles.label}>Reps</Text>
-          <TextInput
-            ref={firstInputRef}
-            style={styles.numberInput}
-            value={form.reps}
-            onChangeText={(text) => setForm(prev => ({ ...prev, reps: text }))}
-            placeholder="0"
-            placeholderTextColor={colors.textDim}
-            keyboardType="numeric"
-            selectTextOnFocus
-          />
+        <View style={styles.exerciseInputs}>
+          <View style={styles.exerciseField}>
+            <Text style={styles.exerciseFieldLabel}>Reps</Text>
+            <TextInput
+              style={styles.numberInput}
+              value={exercise.reps}
+              onChangeText={(text) => onUpdate({ reps: text })}
+              placeholder="0"
+              placeholderTextColor={colors.textDim}
+              keyboardType="numeric"
+              selectTextOnFocus
+            />
+          </View>
         </View>
       );
 
     case 'strength':
       return (
-        <View style={styles.section}>
-          <Text style={styles.label}>Sets</Text>
-          {form.sets.map((set, index) => (
-            <View key={index} style={styles.setRow}>
-              <Text style={styles.setNumber}>{index + 1}</Text>
-              <TextInput
-                ref={index === 0 ? firstInputRef : undefined}
-                style={styles.setInput}
-                value={set.weight.toString()}
-                onChangeText={(text) => onUpdateSet(index, 'weight', text)}
-                placeholder="Weight"
-                placeholderTextColor={colors.textDim}
-                keyboardType="numeric"
-                selectTextOnFocus
-              />
-              <Text style={styles.setX}>×</Text>
-              <TextInput
-                style={styles.setInput}
-                value={set.reps.toString()}
-                onChangeText={(text) => onUpdateSet(index, 'reps', text)}
-                placeholder="Reps"
-                placeholderTextColor={colors.textDim}
-                keyboardType="numeric"
-                selectTextOnFocus
-              />
-            </View>
-          ))}
-          <TouchableOpacity style={styles.addSetButton} onPress={onAddSet}>
-            <Text style={styles.addSetText}>+ Add Set</Text>
-          </TouchableOpacity>
+        <View style={styles.exerciseInputs}>
+          <Text style={styles.exerciseFieldLabel}>Sets</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.setsScrollView}
+            contentContainerStyle={styles.setsScrollContent}
+          >
+            {exercise.sets.map((set, index) => (
+              <View key={index} style={styles.setCard}>
+                <Text style={styles.setCardNumber}>{index + 1}</Text>
+                <TextInput
+                  style={styles.setCardInput}
+                  value={set.weight > 0 ? set.weight.toString() : ''}
+                  onChangeText={(text) => onUpdateSet(index, 'weight', text)}
+                  placeholder="lbs"
+                  placeholderTextColor={colors.textDim}
+                  keyboardType="numeric"
+                  selectTextOnFocus
+                />
+                <Text style={styles.setCardX}>×</Text>
+                <TextInput
+                  style={styles.setCardInput}
+                  value={set.reps > 0 ? set.reps.toString() : ''}
+                  onChangeText={(text) => onUpdateSet(index, 'reps', text)}
+                  placeholder="reps"
+                  placeholderTextColor={colors.textDim}
+                  keyboardType="numeric"
+                  selectTextOnFocus
+                />
+              </View>
+            ))}
+            
+            <TouchableOpacity style={styles.addSetCard} onPress={onAddSet}>
+              <Text style={styles.addSetCardText}>+</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
       );
 
     case 'endurance':
       return (
-        <View style={styles.section}>
+        <View style={styles.exerciseInputs}>
           <View style={styles.enduranceRow}>
             <View style={styles.distanceContainer}>
-              <Text style={styles.label}>Distance</Text>
+              <Text style={styles.exerciseFieldLabel}>Distance</Text>
               <View style={styles.distanceInputRow}>
                 <TextInput
-                  ref={firstInputRef}
                   style={[styles.numberInput, styles.distanceInput]}
-                  value={form.distance}
-                  onChangeText={(text) => setForm(prev => ({ ...prev, distance: text }))}
+                  value={exercise.distance}
+                  onChangeText={(text) => onUpdate({ distance: text })}
                   placeholder="0.0"
                   placeholderTextColor={colors.textDim}
                   keyboardType="numeric"
@@ -592,23 +836,22 @@ const ContextualInputs: React.FC<ContextualInputsProps> = ({
                 />
                 <TouchableOpacity
                   style={styles.unitToggle}
-                  onPress={() => setForm(prev => ({ 
-                    ...prev, 
-                    distanceUnit: prev.distanceUnit === 'km' ? 'mi' : 'km' 
-                  }))}
+                  onPress={() => onUpdate({ 
+                    distanceUnit: exercise.distanceUnit === 'km' ? 'mi' : 'km' 
+                  })}
                 >
-                  <Text style={styles.unitToggleText}>{form.distanceUnit}</Text>
+                  <Text style={styles.unitToggleText}>{exercise.distanceUnit}</Text>
                 </TouchableOpacity>
               </View>
             </View>
             
             <View style={styles.timeContainer}>
-              <Text style={styles.label}>Time</Text>
+              <Text style={styles.exerciseFieldLabel}>Time</Text>
               <View style={styles.timeInputRow}>
                 <TextInput
                   style={styles.timeInput}
-                  value={form.timeMinutes}
-                  onChangeText={(text) => setForm(prev => ({ ...prev, timeMinutes: text }))}
+                  value={exercise.timeMinutes}
+                  onChangeText={(text) => onUpdate({ timeMinutes: text })}
                   placeholder="00"
                   placeholderTextColor={colors.textDim}
                   keyboardType="numeric"
@@ -618,8 +861,8 @@ const ContextualInputs: React.FC<ContextualInputsProps> = ({
                 <Text style={styles.timeColon}>:</Text>
                 <TextInput
                   style={styles.timeInput}
-                  value={form.timeSeconds}
-                  onChangeText={(text) => setForm(prev => ({ ...prev, timeSeconds: text }))}
+                  value={exercise.timeSeconds}
+                  onChangeText={(text) => onUpdate({ timeSeconds: text })}
                   placeholder="00"
                   placeholderTextColor={colors.textDim}
                   keyboardType="numeric"
@@ -637,70 +880,8 @@ const ContextualInputs: React.FC<ContextualInputsProps> = ({
   }
 };
 
-interface AdvancedSectionProps {
-  form: SimplifiedWorkoutForm;
-  setForm: React.Dispatch<React.SetStateAction<SimplifiedWorkoutForm>>;
-  showAdvanced: boolean;
-  onToggle: () => void;
-}
 
-const AdvancedSection: React.FC<AdvancedSectionProps> = ({
-  form,
-  setForm,
-  showAdvanced,
-  onToggle,
-}) => (
-  <View style={styles.section}>
-    <TouchableOpacity style={styles.advancedToggle} onPress={onToggle}>
-      <Text style={styles.advancedToggleText}>
-        {showAdvanced ? '▼' : '▶'} Advanced Options
-      </Text>
-    </TouchableOpacity>
-    
-    {showAdvanced && (
-      <View style={styles.advancedFields}>
-        <View style={styles.advancedField}>
-          <Text style={styles.label}>Notes</Text>
-          <TextInput
-            style={[styles.textInput, styles.notesInput]}
-            value={form.notes}
-            onChangeText={(text) => setForm(prev => ({ ...prev, notes: text }))}
-            placeholder="How did it feel?"
-            placeholderTextColor={colors.textDim}
-            multiline
-            numberOfLines={2}
-          />
-        </View>
-        
-        <View style={styles.advancedRow}>
-          <View style={[styles.advancedField, { flex: 1, marginRight: spacing.md }]}>
-            <Text style={styles.label}>RPE (1-10)</Text>
-            <TextInput
-              style={styles.numberInput}
-              value={form.rpe}
-              onChangeText={(text) => setForm(prev => ({ ...prev, rpe: text }))}
-              placeholder="0"
-              placeholderTextColor={colors.textDim}
-              keyboardType="numeric"
-              maxLength={2}
-            />
-          </View>
-          
-          <View style={[styles.advancedField, { flex: 1 }]}>
-            <Text style={styles.label}>Equipment</Text>
-            <TextInput
-              style={styles.textInput}
-              value={form.equipment}
-              onChangeText={(text) => setForm(prev => ({ ...prev, equipment: text }))}
-              placeholder="Barbell, etc."
-              placeholderTextColor={colors.textDim}
-            />
-          </View>
-        </View>
-      </View>
-    )}
-  </View>
-);
+
 
 interface CustomExerciseDialogProps {
   value: string;
@@ -781,7 +962,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.stroke,
     borderWidth: 1,
-    borderRadius: radii.full,
+    borderRadius: radii.lg,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[1],
   },
@@ -790,41 +971,115 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   
-  // Quick-add chips
-  chipsSection: {
-    paddingHorizontal: layout.screenPaddingHorizontal,
-    marginBottom: spacing[6],
-  },
-  chipsScroll: {
-    flexDirection: 'row',
-  },
-  chip: {
+  // Dropdown styles
+  dropdownButton: {
     backgroundColor: colors.surface,
     borderColor: colors.stroke,
     borderWidth: 1,
     borderRadius: radii.md,
     paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2],
-    marginRight: spacing[2],
+    paddingVertical: spacing[3],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  chipText: {
-    ...typography.labelMedium,
+  dropdownButtonText: {
+    ...typography.body,
     color: colors.text,
+    fontSize: 16,
   },
-  movedTodayChip: {
+  dropdownPlaceholder: {
+    color: colors.textDim,
+  },
+  dropdownArrow: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  movedTodayButton: {
     backgroundColor: colors.panel,
     borderColor: colors.accent,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    alignItems: 'center',
   },
-  movedTodayChipText: {
-    ...typography.labelMedium,
+  movedTodayButtonText: {
+    ...typography.label,
     color: colors.accent,
+    fontWeight: 'bold',
   },
-  customChip: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing[4],
+  },
+  dropdownModal: {
+    backgroundColor: colors.surface,
+    borderColor: colors.stroke,
+    borderWidth: 1,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '70%',
+  },
+  modalTitle: {
+    ...typography.h3,
+    color: colors.text,
+    marginBottom: spacing[4],
+    textAlign: 'center',
+  },
+  exerciseList: {
+    maxHeight: 300,
+    marginBottom: spacing[4],
+  },
+  exerciseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[3],
+    borderBottomColor: colors.stroke,
+    borderBottomWidth: 1,
+  },
+  exerciseItemText: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+  },
+  exerciseItemSkill: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    backgroundColor: colors.panel,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[1],
+    borderRadius: radii.sm,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: spacing[3],
+  },
+  modalButton: {
+    flex: 1,
+    backgroundColor: colors.panel,
+    borderColor: colors.stroke,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingVertical: spacing[3],
+    alignItems: 'center',
+  },
+  customButton: {
     borderColor: colors.accentAlt,
-    borderStyle: 'dashed',
   },
-  customChipText: {
-    ...typography.labelMedium,
+  modalButtonText: {
+    ...typography.label,
+    color: colors.text,
+  },
+  customButtonText: {
+    ...typography.label,
     color: colors.accentAlt,
   },
   
@@ -834,7 +1089,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing[6],
   },
   label: {
-    ...typography.labelMedium,
+    ...typography.label,
     color: colors.text,
     marginBottom: spacing[2],
   },
@@ -880,14 +1135,74 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[6],
   },
   
-  // Strength sets
+  // Strength sets (horizontal)
+  setsScrollView: {
+    marginTop: spacing[2],
+  },
+  setsScrollContent: {
+    paddingRight: spacing[4],
+  },
+  setCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.stroke,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing[3],
+    marginRight: spacing[3],
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  setCardNumber: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing[2],
+    fontWeight: 'bold',
+  },
+  setCardInput: {
+    ...typography.body,
+    color: colors.text,
+    backgroundColor: colors.bg,
+    borderColor: colors.stroke,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[2],
+    fontSize: 14,
+    textAlign: 'center',
+    width: '100%',
+    marginBottom: spacing[1],
+  },
+  setCardX: {
+    ...typography.body,
+    color: colors.textDim,
+    marginVertical: spacing[1],
+    fontSize: 12,
+  },
+  addSetCard: {
+    backgroundColor: colors.panel,
+    borderColor: colors.accentAlt,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: radii.md,
+    padding: spacing[3],
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+    minHeight: 100,
+  },
+  addSetCardText: {
+    ...typography.h3,
+    color: colors.accentAlt,
+  },
+  
+  // Legacy set styles (kept for compatibility)
   setRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: spacing[3],
   },
   setNumber: {
-    ...typography.labelLarge,
+    ...typography.label,
     color: colors.textSecondary,
     width: 24,
     textAlign: 'center',
@@ -921,7 +1236,7 @@ const styles = StyleSheet.create({
     marginTop: spacing[2],
   },
   addSetText: {
-    ...typography.labelMedium,
+    ...typography.label,
     color: colors.accentAlt,
   },
   
@@ -990,7 +1305,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
   },
   advancedToggleText: {
-    ...typography.labelMedium,
+    ...typography.label,
     color: colors.textSecondary,
   },
   advancedFields: {
@@ -1025,7 +1340,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   xpText: {
-    ...typography.labelLarge,
+    ...typography.label,
     color: colors.accent,
     fontWeight: 'bold',
   },
@@ -1036,6 +1351,110 @@ const styles = StyleSheet.create({
   saveButton: {
     flex: 1,
     marginLeft: spacing[4],
+  },
+  mainSubmitButton: {
+    marginBottom: spacing[3],
+  },
+  submitPreview: {
+    alignItems: 'center',
+    marginTop: spacing[2],
+  },
+  submitXpText: {
+    ...typography.label,
+    color: colors.accent,
+    fontWeight: 'bold',
+  },
+  submitTypeText: {
+    ...typography.caption,
+    color: colors.textDim,
+  },
+  
+  // Exercise cards
+  exerciseCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.stroke,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    marginBottom: spacing[4],
+    overflow: 'hidden',
+  },
+  exerciseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[3],
+    backgroundColor: colors.panel,
+  },
+  exerciseHeaderLeft: {
+    flex: 1,
+  },
+  exerciseTitle: {
+    ...typography.label,
+    color: colors.text,
+    fontWeight: 'bold',
+    marginBottom: spacing[1],
+  },
+  exerciseType: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[1],
+    borderRadius: radii.sm,
+    alignSelf: 'flex-start',
+  },
+  exerciseHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  exerciseXP: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: 'bold',
+  },
+  editButton: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButtonText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  removeButton: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeButtonText: {
+    ...typography.body,
+    color: colors.error,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  exerciseError: {
+    ...typography.caption,
+    color: colors.error,
+    paddingHorizontal: spacing[3],
+    paddingBottom: spacing[2],
+    fontStyle: 'italic',
+  },
+  exerciseInputs: {
+    paddingHorizontal: spacing[3],
+    paddingBottom: spacing[3],
+  },
+  exerciseField: {
+    marginBottom: spacing[3],
+  },
+  exerciseFieldLabel: {
+    ...typography.label,
+    color: colors.text,
+    marginBottom: spacing[2],
   },
   
   // Custom exercise dialog
@@ -1095,7 +1514,7 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
   },
   dialogButtonText: {
-    ...typography.labelMedium,
+    ...typography.label,
     color: colors.text,
   },
   dialogButtonPrimaryText: {
