@@ -5,7 +5,12 @@ import {
   Skill,
   XPBreakdown 
 } from '../types/domain';
-import { calculateLevel } from './levels';
+import { 
+  calculateLevel, 
+  calculateHybridLevel, 
+  calculatePRBonusXP, 
+  getXPForLevel 
+} from './levels';
 import { getSkill, updateSkill, updateUser, calculateAndGetOverallLevel } from '../lib/firestore';
 
 /**
@@ -138,17 +143,33 @@ export const detectPRs = async (userId: string, exercises: ExerciseBlock[]): Pro
 
 /**
  * Applies detected PRs to the user's skills and updates Firebase
+ * Now includes bonus XP for PR achievements
  */
 export const applyPRs = async (userId: string, prResults: PRResult[]): Promise<void> => {
   if (prResults.length === 0) return;
   
-  // Update each skill with new PR
+  // Update each skill with new PR and award bonus XP
   for (const pr of prResults) {
     try {
+      const skill = await getSkill(userId, pr.skillId);
+      if (!skill) continue;
+
+      // Calculate bonus XP for level gain
+      const bonusXP = calculatePRBonusXP(pr.levelBefore, pr.levelAfter);
+      const currentXP = skill.xp || 0;
+      const newXP = currentXP + bonusXP;
+
+      // Calculate new hybrid level with updated XP
+      const newLevel = calculateHybridLevel(pr.levelAfter, newXP);
+
       await updateSkill(userId, pr.skillId, {
         best: pr.newValue,
-        level: pr.levelAfter,
+        level: newLevel,
+        xp: newXP,
       });
+
+      console.log(`PR achieved for ${pr.skillId}: ${pr.oldValue} -> ${pr.newValue} (Level ${pr.levelBefore} -> ${pr.levelAfter})`);
+      console.log(`Awarded ${bonusXP} bonus XP: ${currentXP} -> ${newXP} (Final level: ${newLevel})`);
     } catch (error) {
       console.error(`Error updating skill ${pr.skillId}:`, error);
     }
@@ -284,5 +305,121 @@ export const formatPerformance = (value: number, skillName: SkillName): string =
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   } else {
     return value.toString();
+  }
+};
+
+// =============================================================================
+// XP ALLOCATION SYSTEM
+// =============================================================================
+
+/**
+ * Calculate XP to allocate to skills based on exercise type and mapping
+ */
+export const allocateWorkoutXP = (exercises: ExerciseBlock[]): Record<SkillName, number> => {
+  const skillXP: Record<SkillName, number> = {
+    pushups: 0,
+    situps: 0,
+    squats: 0,
+    pullups: 0,
+    '5k': 0,
+  };
+
+  for (const exercise of exercises) {
+    const skillName = getSkillForExercise(exercise.name);
+    if (!skillName) continue;
+
+    let xpAmount = 0;
+
+    switch (exercise.type) {
+      case 'strength':
+        if (exercise.strengthSets && skillName !== '5k') {
+          // For strength exercises that map to bodyweight skills
+          // XP = total reps across all sets
+          xpAmount = exercise.strengthSets.reduce((total, set) => total + set.reps, 0);
+        }
+        break;
+
+      case 'bodyweight':
+        if (exercise.bodyweightSets && skillName !== '5k') {
+          // XP = total reps across all sets
+          xpAmount = exercise.bodyweightSets.reduce((total, set) => total + set.reps, 0);
+        }
+        break;
+
+      case 'endurance':
+        if (exercise.enduranceData && skillName === '5k') {
+          // XP = distance * 20 + time in minutes * 2
+          const distanceXP = (exercise.enduranceData.distanceKm || 0) * 20;
+          const timeXP = (exercise.enduranceData.timeSec / 60) * 2;
+          xpAmount = distanceXP + timeXP;
+        }
+        break;
+    }
+
+    skillXP[skillName] += Math.round(xpAmount);
+  }
+
+  return skillXP;
+};
+
+/**
+ * Apply XP to skills and update their levels using hybrid system
+ */
+export const applyXPToSkills = async (userId: string, skillXP: Record<SkillName, number>): Promise<void> => {
+  for (const [skillName, xpGain] of Object.entries(skillXP)) {
+    if (xpGain <= 0) continue;
+
+    try {
+      const skill = await getSkill(userId, skillName as SkillName);
+      if (!skill) continue;
+
+      // Calculate new XP total
+      const currentXP = skill.xp || 0;
+      const newXP = currentXP + xpGain;
+
+      // Calculate new hybrid level
+      const prLevel = calculateLevel(skillName as SkillName, skill.best);
+      const newLevel = calculateHybridLevel(prLevel, newXP);
+
+      // Update skill with new XP and level
+      await updateSkill(userId, skillName as SkillName, {
+        xp: newXP,
+        level: newLevel,
+      });
+
+      console.log(`Applied ${xpGain} XP to ${skillName}: ${currentXP} -> ${newXP} (Level ${skill.level} -> ${newLevel})`);
+    } catch (error) {
+      console.error(`Error applying XP to skill ${skillName}:`, error);
+    }
+  }
+};
+
+/**
+ * Initialize skill XP based on current level (for backfill)
+ */
+export const initializeSkillXP = async (userId: string, skillName: SkillName): Promise<void> => {
+  try {
+    const skill = await getSkill(userId, skillName);
+    if (!skill || skill.xp !== undefined) return; // Skip if XP already exists
+
+    const requiredXP = getXPForLevel(skill.level);
+    await updateSkill(userId, skillName, {
+      xp: requiredXP,
+    });
+
+    console.log(`Initialized ${skillName} XP to ${requiredXP} for level ${skill.level}`);
+  } catch (error) {
+    console.error(`Error initializing XP for skill ${skillName}:`, error);
+  }
+};
+
+/**
+ * Backfill XP for all skills based on current levels
+ */
+export const backfillAllSkillsXP = async (userId: string): Promise<void> => {
+  const skillNames: SkillName[] = ['pushups', 'situps', 'squats', 'pullups', '5k'];
+  
+  for (const skillName of skillNames) {
+    await initializeSkillXP(userId, skillName);
   }
 };

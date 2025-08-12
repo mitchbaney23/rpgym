@@ -145,3 +145,110 @@ export const calcOverallLevel = (skills: Array<{level: number}>): number => {
     skills.reduce((sum, s) => sum + s.level, 0) / skills.length
   );
 };
+
+// =============================================================================
+// XP CURVE SYSTEM
+// =============================================================================
+
+/**
+ * Tunable constants for hybrid XP + PR leveling system
+ */
+export const XP_CONFIG = {
+  SOFT_CAP_BUFFER: 3,        // levels above PR before diminishing returns
+  OVERCAP_PENALTY: 0.5,      // XP efficiency above the soft cap (50% efficiency)
+  BASE_XP: 100,              // XP required for level 1
+  XP_PER_LEVEL: 25,          // Additional XP per level (Level 1 = 100, Level 2 = 125, etc.)
+};
+
+/**
+ * Calculate total XP required to reach a specific level
+ * Level 1 = 100 XP, Level 2 = 125 XP, Level 3 = 150 XP, etc.
+ * Formula: XP = level * (BASE_XP + (level - 1) * XP_PER_LEVEL / 2)
+ */
+export const getXPForLevel = (level: number): number => {
+  if (level <= 0) return 0;
+  if (level >= 99) level = 99; // Cap at level 99
+  
+  // Arithmetic progression sum: level * (first_term + last_term) / 2
+  const firstTerm = XP_CONFIG.BASE_XP;
+  const lastTerm = XP_CONFIG.BASE_XP + (level - 1) * XP_CONFIG.XP_PER_LEVEL;
+  return Math.round(level * (firstTerm + lastTerm) / 2);
+};
+
+/**
+ * Calculate level from total XP using the XP curve
+ */
+export const getLevelFromXP = (totalXP: number): number => {
+  if (totalXP <= 0) return 0;
+  
+  // Binary search to find the level
+  let low = 0;
+  let high = 99;
+  
+  while (low < high) {
+    const mid = Math.floor((low + high + 1) / 2);
+    const requiredXP = getXPForLevel(mid);
+    
+    if (totalXP >= requiredXP) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  
+  return low;
+};
+
+/**
+ * Calculate XP needed for the next level
+ */
+export const getXPToNextLevel = (currentXP: number): number => {
+  const currentLevel = getLevelFromXP(currentXP);
+  if (currentLevel >= 99) return 0; // Max level reached
+  
+  const nextLevelXP = getXPForLevel(currentLevel + 1);
+  return nextLevelXP - currentXP;
+};
+
+/**
+ * Calculate progress within current level (0.0 to 1.0)
+ */
+export const getLevelProgress = (currentXP: number): number => {
+  const currentLevel = getLevelFromXP(currentXP);
+  if (currentLevel >= 99) return 1.0; // Max level
+  if (currentLevel === 0) return 0.0; // No XP yet
+  
+  const currentLevelXP = getXPForLevel(currentLevel);
+  const nextLevelXP = getXPForLevel(currentLevel + 1);
+  const progressXP = currentXP - currentLevelXP;
+  const totalLevelXP = nextLevelXP - currentLevelXP;
+  
+  return Math.max(0, Math.min(1, progressXP / totalLevelXP));
+};
+
+/**
+ * Calculate effective skill level combining PR level and XP level with soft cap
+ */
+export const calculateHybridLevel = (prLevel: number, currentXP: number): number => {
+  const xpLevel = getLevelFromXP(currentXP);
+  const softCap = prLevel + XP_CONFIG.SOFT_CAP_BUFFER;
+  
+  if (xpLevel <= softCap) {
+    // Below soft cap: use XP level directly
+    return Math.min(xpLevel, 99);
+  } else {
+    // Above soft cap: apply diminishing returns
+    const overCapLevels = xpLevel - softCap;
+    const penalizedLevels = overCapLevels * XP_CONFIG.OVERCAP_PENALTY;
+    return Math.min(softCap + penalizedLevels, 99);
+  }
+};
+
+/**
+ * Calculate bonus XP for PR level gains
+ * Awards 100 XP per level gained from PR improvement
+ */
+export const calculatePRBonusXP = (levelBefore: number, levelAfter: number): number => {
+  const levelsGained = Math.max(0, levelAfter - levelBefore);
+  return levelsGained * 100;
+};

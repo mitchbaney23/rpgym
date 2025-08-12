@@ -28,11 +28,20 @@ import {
 } from '../../types/domain';
 import { router } from 'expo-router';
 import { Timestamp } from 'firebase/firestore';
-import { saveWorkoutSession, getWorkoutSessions, updateWorkoutSession, logDailyQuest } from '../../lib/firestore';
-import { detectPRsAndApply, calculateWorkoutXP } from '../../utils/pr';
+import { saveWorkoutSession, getWorkoutSessions, updateWorkoutSession, logDailyQuest, calculateAndGetOverallLevel } from '../../lib/firestore';
+import { 
+  detectPRsAndApply, 
+  calculateWorkoutXP, 
+  allocateWorkoutXP, 
+  applyXPToSkills,
+  backfillAllSkillsXP 
+} from '../../utils/pr';
 
 export default function LogScreen() {
   const { user, isAuthenticated, isLoading, crtOverlayEnabled } = useAppStore();
+  
+  // Debug: Log any potential string values
+  console.log('LogScreen render - user:', !!user, 'isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
   const [workoutForm, setWorkoutForm] = useState<WorkoutForm>({
     title: '',
     date: new Date(),
@@ -46,6 +55,8 @@ export default function LogScreen() {
   const [editingWorkout, setEditingWorkout] = useState<WorkoutSession | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showHistoryPage, setShowHistoryPage] = useState(false);
+  const [showWorkoutDetailPage, setShowWorkoutDetailPage] = useState(false);
+  const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null);
   const [workoutCompletedToday, setWorkoutCompletedToday] = useState(false);
 
   useEffect(() => {
@@ -70,6 +81,10 @@ export default function LogScreen() {
     if (user) {
       loadWorkoutHistory();
       checkTodaysWorkoutStatus();
+      // Initialize XP for existing users (backfill)
+      backfillAllSkillsXP(user.uid).catch(error => 
+        console.error('Error backfilling XP:', error)
+      );
     }
   }, [user]);
 
@@ -156,6 +171,33 @@ export default function LogScreen() {
     });
     setExercises(workout.exercises || []);
     setShowHistory(false);
+  };
+
+  const loadWorkoutForDetailPage = (workout: WorkoutSession) => {
+    setEditingWorkout(workout);
+    
+    // Handle both Timestamp and string dates defensively
+    let workoutDate: Date;
+    try {
+      if (workout.date && typeof workout.date.toDate === 'function') {
+        workoutDate = workout.date.toDate();
+      } else if (typeof workout.date === 'string') {
+        workoutDate = new Date(workout.date);
+      } else {
+        workoutDate = new Date();
+      }
+    } catch (error) {
+      console.warn('Invalid workout date:', workout.date);
+      workoutDate = new Date();
+    }
+    
+    setWorkoutForm({
+      title: workout.title || '',
+      date: workoutDate,
+      notes: workout.notes || '',
+      durationMin: workout.durationMin?.toString() || '',
+    });
+    setExercises(workout.exercises || []);
   };
 
   const cancelEditing = () => {
@@ -288,7 +330,7 @@ export default function LogScreen() {
   };
 
   const saveWorkout = async () => {
-    if (!user || exercises.length === 0) {
+    if (!user || !exercises || exercises.length === 0) {
       Alert.alert('Error', 'Please add at least one exercise');
       return;
     }
@@ -310,6 +352,13 @@ export default function LogScreen() {
         // Detect and apply PRs for new workouts
         prResults = await detectPRsAndApply(user.uid, namedExercises);
         xpBreakdown = calculateWorkoutXP(namedExercises, prResults);
+        
+        // Allocate and apply workout XP to skills
+        const skillXP = allocateWorkoutXP(namedExercises);
+        await applyXPToSkills(user.uid, skillXP);
+        
+        // Recalculate overall level after XP allocation
+        await calculateAndGetOverallLevel(user.uid);
       }
       
       const workoutData: any = {
@@ -332,8 +381,17 @@ export default function LogScreen() {
         await updateWorkoutSession(user.uid, editingWorkout.id, cleanUndefinedValues(workoutData));
         Alert.alert('\u2705 Updated!', 'Workout updated successfully!', [
           { text: 'OK', onPress: () => {
-            setWorkoutCompletedToday(true);
-            resetForm();
+            if (showWorkoutDetailPage) {
+              // If editing from detail page, go back to history
+              setShowWorkoutDetailPage(false);
+              setSelectedWorkout(null);
+              setShowHistoryPage(true);
+              resetForm();
+            } else {
+              // If editing from main log screen
+              setWorkoutCompletedToday(true);
+              resetForm();
+            }
           }}
         ]);
       } else {
@@ -422,9 +480,9 @@ export default function LogScreen() {
               style={styles.backButton}
               onPress={() => setShowHistoryPage(false)}
             >
-              <Text style={styles.backButtonText}>← Back</Text>
+              <Text style={styles.backButtonText}>{"← Back"}</Text>
             </TouchableOpacity>
-            <Text style={styles.historyPageTitle}>WORKOUT HISTORY</Text>
+            <Text style={styles.historyPageTitle}>{"WORKOUT HISTORY"}</Text>
           </View>
           
           <ScrollView style={styles.scrollView}>
@@ -432,11 +490,11 @@ export default function LogScreen() {
               {isLoadingHistory ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color={colors.primary} />
-                  <Text style={styles.loadingText}>Loading history...</Text>
+                  <Text style={styles.loadingText}>{"Loading history..."}</Text>
                 </View>
               ) : !workoutHistory || workoutHistory.length === 0 ? (
                 <View style={styles.emptyHistoryContainer}>
-                  <Text style={styles.emptyHistoryText}>No workouts yet. Create your first one!</Text>
+                  <Text style={styles.emptyHistoryText}>{"No workouts yet. Create your first one!"}</Text>
                 </View>
               ) : (
                 (workoutHistory || []).map((workout) => (
@@ -444,21 +502,23 @@ export default function LogScreen() {
                     key={workout.id}
                     style={styles.historyItem}
                     onPress={() => {
-                      loadWorkoutForEditing(workout);
+                      setSelectedWorkout(workout);
+                      loadWorkoutForDetailPage(workout);
+                      setShowWorkoutDetailPage(true);
                       setShowHistoryPage(false);
                     }}
                   >
                     <View style={styles.historyItemHeader}>
-                      <Text style={styles.historyItemTitle}>{workout.title || 'Untitled Workout'}</Text>
+                      <Text style={styles.historyItemTitle}>{String(workout.title || 'Untitled Workout')}</Text>
                       <Text style={styles.historyItemDate}>
-{(() => {
+                        {(() => {
                           try {
                             if (workout.date && typeof workout.date.toDate === 'function') {
                               const dateStr = workout.date.toDate().toLocaleDateString();
-                              return dateStr || 'Unknown date';
+                              return String(dateStr || 'Unknown date');
                             } else if (typeof workout.date === 'string') {
                               const dateStr = new Date(workout.date).toLocaleDateString();
-                              return dateStr || 'Unknown date';
+                              return String(dateStr || 'Unknown date');
                             } else {
                               return 'Unknown date';
                             }
@@ -470,22 +530,142 @@ export default function LogScreen() {
                     </View>
                     <View style={styles.historyItemStats}>
                       <Text style={styles.historyItemStat}>
-                        {(workout.exercises || []).length} exercises
+                        {String((workout.exercises || []).length) + " exercises"}
                       </Text>
-                      {workout.totalXP && (
+                      {workout.totalXP ? (
                         <Text style={styles.historyItemStat}>
-                          {workout.totalXP} XP
+                          {String(workout.totalXP) + " XP"}
                         </Text>
-                      )}
-                      {workout.prsDetected && workout.prsDetected > 0 && (
+                      ) : null}
+                      {workout.prsDetected && workout.prsDetected > 0 ? (
                         <Text style={styles.historyItemPR}>
-                          {workout.prsDetected} PR{workout.prsDetected > 1 ? 's' : ''}
+                          {String(workout.prsDetected) + " PR" + (workout.prsDetected > 1 ? 's' : '')}
                         </Text>
-                      )}
+                      ) : null}
                     </View>
                   </TouchableOpacity>
                 ))
               )}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </RetroBackground>
+    );
+  }
+
+  // Workout detail/edit page view
+  if (showWorkoutDetailPage && selectedWorkout) {
+    return (
+      <RetroBackground showScanlines={crtOverlayEnabled}>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.historyPageHeader}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                setShowWorkoutDetailPage(false);
+                setSelectedWorkout(null);
+                setEditingWorkout(null);
+                setShowHistoryPage(true);
+                resetForm();
+              }}
+            >
+              <Text style={styles.backButtonText}>{"← Back"}</Text>
+            </TouchableOpacity>
+            <Text style={styles.historyPageTitle}>{"EDIT WORKOUT"}</Text>
+          </View>
+          
+          <ScrollView style={styles.scrollView}>
+            <View style={styles.formSection}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>{"Title"}</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={workoutForm.title}
+                  onChangeText={(text) => setWorkoutForm(prev => ({ ...prev, title: text }))}
+                  placeholder={"Workout Title"}
+                  placeholderTextColor={colors.textDim}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.md }]}>
+                  <Text style={styles.label}>{"Duration (min)"}</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={workoutForm.durationMin}
+                    onChangeText={(text) => setWorkoutForm(prev => ({ ...prev, durationMin: text }))}
+                    placeholder={"45"}
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>{"Notes"}</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={workoutForm.notes}
+                  onChangeText={(text) => setWorkoutForm(prev => ({ ...prev, notes: text }))}
+                  placeholder={"How did it feel? Any observations..."}
+                  placeholderTextColor={colors.textDim}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </View>
+
+            {/* Exercise Blocks */}
+            <View style={styles.exerciseSection}>
+              <Text style={styles.sectionTitle}>{"EXERCISES"}</Text>
+              
+              {exercises.map((exercise, index) => (
+                <ExerciseBlockComponent
+                  key={exercise.id}
+                  exercise={exercise}
+                  onUpdate={(updates) => updateExercise(exercise.id, updates)}
+                  onRemove={() => removeExercise(exercise.id)}
+                  onAddSet={(type) => addSet(exercise.id, type)}
+                  onUpdateSet={(setIndex, type, field, value) => 
+                    updateSet(exercise.id, setIndex, type, field, value)
+                  }
+                  onUpdateEnduranceTime={(timeStr) => updateEnduranceTime(exercise.id, timeStr)}
+                />
+              ))}
+
+              {/* Add Exercise Buttons */}
+              <View style={styles.addExerciseContainer}>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => addExercise('strength')}
+                >
+                  <Text style={styles.addButtonText}>{"+ Strength"}</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => addExercise('bodyweight')}
+                >
+                  <Text style={styles.addButtonText}>{"+ Bodyweight"}</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => addExercise('endurance')}
+                >
+                  <Text style={styles.addButtonText}>{"+ Endurance"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Save Button */}
+            <View style={styles.saveSection}>
+              <NeonButton
+                title={isSaving ? "SAVING..." : "UPDATE WORKOUT"}
+                onPress={saveWorkout}
+                disabled={isSaving || (exercises && exercises.length === 0)}
+                style={styles.saveButton}
+              />
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -502,7 +682,7 @@ export default function LogScreen() {
         >
           <View style={styles.header}>
             <Text style={styles.title}>
-              {editingWorkout ? '\u270F\uFE0F EDIT WORKOUT' : '\u26A1 LOG WORKOUT'}
+              {editingWorkout ? "✏️ EDIT WORKOUT" : "⚡ LOG WORKOUT"}
             </Text>
             
             
@@ -521,8 +701,8 @@ export default function LogScreen() {
           {/* Completion State */}
           {workoutCompletedToday ? (
             <View style={styles.completionSection}>
-              <Text style={styles.completionTitle}>✅ WORKOUT COMPLETE!</Text>
-              <Text style={styles.completionMessage}>Great job! You've logged a workout for today.</Text>
+              <Text style={styles.completionTitle}>{"✅ WORKOUT COMPLETE!"}</Text>
+              <Text style={styles.completionMessage}>{"Great job! You've logged a workout for today."}</Text>
               
               <View style={styles.completionButtons}>
                 <NeonButton
@@ -631,7 +811,7 @@ export default function LogScreen() {
             <NeonButton
               title={isSaving ? 'SAVING...' : 'SAVE WORKOUT'}
               onPress={saveWorkout}
-              disabled={isSaving || exercises.length === 0}
+              disabled={isSaving || (exercises && exercises.length === 0)}
               style={styles.saveButton}
             />
           </View>
@@ -706,7 +886,7 @@ const ExerciseBlockComponent: React.FC<ExerciseBlockProps> = ({
           </View>
           {exercise.strengthSets.map((set, index) => (
             <View key={index} style={styles.setRow}>
-              <Text style={styles.setNumber}>{index + 1}</Text>
+              <Text style={styles.setNumber}>{String(index + 1)}</Text>
               <TextInput
                 style={styles.setInput}
                 value={set.reps.toString()}
@@ -726,7 +906,7 @@ const ExerciseBlockComponent: React.FC<ExerciseBlockProps> = ({
               <TextInput
                 style={styles.setInput}
                 value={set.rpe?.toString() || ''}
-                onChangeText={(text) => onUpdateSet(index, 'strength', 'rpe', parseInt(text) || undefined)}
+                onChangeText={(text) => onUpdateSet(index, 'strength', 'rpe', text ? parseInt(text) || 0 : 0)}
                 keyboardType="numeric"
                 placeholder="10"
                 placeholderTextColor={colors.textDim}
@@ -752,7 +932,7 @@ const ExerciseBlockComponent: React.FC<ExerciseBlockProps> = ({
           </View>
           {exercise.bodyweightSets.map((set, index) => (
             <View key={index} style={styles.setRow}>
-              <Text style={styles.setNumber}>{index + 1}</Text>
+              <Text style={styles.setNumber}>{String(index + 1)}</Text>
               <TextInput
                 style={styles.setInput}
                 value={set.reps.toString()}
@@ -764,7 +944,7 @@ const ExerciseBlockComponent: React.FC<ExerciseBlockProps> = ({
               <TextInput
                 style={styles.setInput}
                 value={set.rpe?.toString() || ''}
-                onChangeText={(text) => onUpdateSet(index, 'bodyweight', 'rpe', parseInt(text) || undefined)}
+                onChangeText={(text) => onUpdateSet(index, 'bodyweight', 'rpe', text ? parseInt(text) || 0 : 0)}
                 keyboardType="numeric"
                 placeholder="10"
                 placeholderTextColor={colors.textDim}
@@ -792,7 +972,7 @@ const ExerciseBlockComponent: React.FC<ExerciseBlockProps> = ({
                 onChangeText={(text) => onUpdate({
                   enduranceData: {
                     ...exercise.enduranceData!,
-                    distanceKm: parseFloat(text) || undefined
+                    distanceKm: text ? parseFloat(text) || 0 : undefined
                   }
                 })}
                 keyboardType="numeric"

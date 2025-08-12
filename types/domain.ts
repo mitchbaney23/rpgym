@@ -18,6 +18,7 @@ export interface Skill {
   name: SkillName;
   level: number;
   best: number; // reps for exercises, seconds for 5k
+  xp?: number; // persistent XP for hybrid leveling (optional for backward compatibility)
   lastUpdated: Timestamp;
 }
 
